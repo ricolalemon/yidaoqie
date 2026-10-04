@@ -100,14 +100,201 @@ button:focus-visible{outline:3px solid var(--red);outline-offset:2px}
     <canvas id="demo" aria-hidden="true"></canvas>
     <button class="mode" type="button" id="mDaily"><span class="ic">📅</span><span><b>今日五刀</b><span id="dailyInfo">每天五样东西，所有人同一题</span></span></button>
     <button class="mode" type="button" id="mEndless"><span class="ic">🔪</span><span><b>闯关</b><span id="endlessInfo">越切越难，三把刀用完就结束</span></span></button>
+    <button class="mode" type="button" id="mBoard"><span class="ic">🏆</span><span><b>今日排行榜</b><span>今日五刀，比谁的平均差最小</span></span></button>
   </div>
 </section>
 <div id="modal" hidden></div>
 <div class="toast" id="toast"></div>
 
+<!--BOARD 五个小游戏共用的每日排行榜（tools/board.html，用 tools/embed-board.mjs 塞进各个游戏）-->
+<style>
+.mb-wrap{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(40,25,20,.5);font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:#33302e;-webkit-user-select:none;user-select:none}
+.mb-card{width:min(380px,100%);max-height:calc(100% - 16px);overflow:auto;border-radius:24px;background:#fffaf3;box-shadow:0 24px 60px rgba(40,20,10,.35);padding:22px 18px 18px;display:flex;flex-direction:column;gap:10px;text-align:center;animation:mb-pop .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes mb-pop{from{transform:translateY(14px) scale(.95);opacity:0}}
+.mb-card h2{margin:0;font-family:"ZCOOL KuaiLe","PingFang SC",sans-serif;font-weight:400;font-size:28px;line-height:1.2}
+.mb-sub{margin:0;font-size:12px;color:#7a716a}
+.mb-tabs{display:flex;gap:4px;padding:4px;border-radius:999px;background:#f1e8dc;align-self:center}
+.mb-tabs button{border:0;border-radius:999px;padding:6px 14px;background:transparent;font:inherit;font-weight:700;font-size:13px;color:#7a716a;cursor:pointer}
+.mb-tabs button.on{background:#fff;color:#33302e;box-shadow:0 2px 6px rgba(60,30,10,.12)}
+.mb-mine{margin:0;font-size:14px;font-weight:700;color:#3b9c80;min-height:1.4em}
+.mb-list{display:flex;flex-direction:column;gap:6px;min-height:110px;max-height:50vh;overflow:auto;margin:0 -4px;padding:2px 4px;text-align:left}
+.mb-row{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 1.5px rgba(60,40,30,.12)}
+.mb-row.me{background:#e6f7f1;box-shadow:inset 0 0 0 2px #5fc7a8}
+.mb-rk{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-family:"Baloo 2","Noto Sans SC",sans-serif;font-weight:800;font-size:14px;color:#7a716a}
+.mb-rk.g1{background:#ffd54f;color:#7a5200}.mb-rk.g2{background:#dfe3e8;color:#4a5560}.mb-rk.g3{background:#f1c39a;color:#7a3f12}
+.mb-nm{flex:1;min-width:0;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mb-sc{flex:none;max-width:52%;text-align:right;font-size:12px;color:#7a716a;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mb-sc b{display:block;font-family:"Baloo 2","Noto Sans SC",sans-serif;font-weight:800;font-size:15px;color:#33302e}
+.mb-note{margin:0;padding:18px 0;text-align:center;font-size:13px;color:#7a716a}
+.mb-row2{display:flex;gap:8px}
+.mb-row2 > *{flex:1}
+.mb-btn{border:0;border-radius:14px;padding:11px 10px;font:inherit;font-weight:900;font-size:15px;cursor:pointer;background:#fff;color:#33302e;box-shadow:inset 0 0 0 1.5px rgba(60,40,30,.14);-webkit-tap-highlight-color:transparent}
+.mb-btn.main{background:#5fc7a8;color:#fff;box-shadow:inset 0 -4px 0 rgba(0,0,0,.14),0 8px 18px rgba(40,120,100,.3)}
+.mb-btn:active{transform:translateY(2px)}
+.mb-input{width:100%;box-sizing:border-box;border:0;border-radius:14px;padding:12px 14px;font:inherit;font-size:17px;font-weight:700;color:#33302e;background:#fff;box-shadow:inset 0 0 0 2px rgba(60,40,30,.14);outline:none;-webkit-user-select:text;user-select:text}
+.mb-input:focus{box-shadow:inset 0 0 0 2px #5fc7a8}
+.mb-err{min-height:1.2em;margin:0;font-size:12px;color:#ff7a6b}
+</style>
+<script>
+window.MiniBoard = (() => {
+'use strict';
+// Supabase 项目的地址和公开 key（公开 key 本来就是给网页用的，能读榜、能交成绩，改不了别人的）
+const URL0 = 'https://ghjrmmqnajguwkfoplgo.supabase.co', KEY = 'sb_publishable_1YWUN4fZ3c_TjQD9p6Lmlg_K-vDB6y_';
+const PREVIEW = !!window.claude || /(^|\.)claude(usercontent)?\.(ai|com)$/.test(location.hostname);
+const store = {
+  get(k, d){ try { const v = localStorage.getItem('mini:' + k); return v == null ? d : JSON.parse(v); } catch (e){ return d; } },
+  set(k, v){ try { localStorage.setItem('mini:' + k, JSON.stringify(v)); } catch (e){} }
+};
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+// game：哪个游戏；first：一天只算第一局（否则留当天最好的一局）
+let cfg = {game: '', first: false};
+const day = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+// 每个人一个只存在自己手机上的编号（交成绩、改名用），和一个公开的短标记（榜上认出自己用）；五个游戏共用一个名字
+function me(){
+  let m = store.get('me', null);
+  if (!m){
+    const hex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
+    const h = hex(16);
+    m = {pid: `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`, tag: hex(4), name: ''};
+    store.set('me', m);
+  }
+  return m;
+}
+let api = async (path, body) => {
+  const headers = {apikey: KEY, 'Content-Type': 'application/json'};
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 8000);
+  try {
+    const r = await fetch(URL0 + '/rest/v1/' + path, body ? {method: 'POST', headers, body: JSON.stringify(body), signal: ctl.signal} : {headers, signal: ctl.signal});
+    if (!r.ok) throw new Error('http ' + r.status);
+    const txt = await r.text();
+    return txt ? JSON.parse(txt) : null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+const pendKey = board => `pend:${cfg.game}:${board}`, sentKey = board => `sent:${cfg.game}:${board}`;
+const better = (x, y) => x.a > y.a || (x.a === y.a && (x.b || 0) > (y.b || 0));
+// 交成绩：a 越大越好，a 一样比 b；shown 是榜上显示的成绩，extra 是下面一行小字
+function submit(board, sc){
+  const d = day(), p = store.get(pendKey(board), null), sent = store.get(sentKey(board), null);
+  if (cfg.first && ((sent && sent.day === d) || (p && p.day === d))) return;
+  if (p && p.day === d && !better(sc, p)) return;
+  if (sent && sent.day === d && !better(sc, sent)) return;
+  store.set(pendKey(board), {day: d, a: sc.a, b: sc.b || 0, shown: String(sc.shown).slice(0, 40), extra: String(sc.extra || '').slice(0, 60)});
+  flush(board).catch(() => {});
+}
+async function flush(board){
+  const p = store.get(pendKey(board), null), m = me();
+  if (!p || !m.name || PREVIEW) return null;
+  const res = await api('rpc/mini_submit', {p_game: cfg.game, p_board: board, p_day: p.day, p_player: m.pid, p_tag: m.tag, p_name: m.name, p_a: p.a, p_b: p.b, p_shown: p.shown, p_extra: p.extra});
+  store.set(pendKey(board), null);
+  store.set(sentKey(board), {day: p.day, a: p.a, b: p.b});
+  return res;
+}
+const open = card => { close(); const w = el('div', 'mb-wrap'); w.id = 'mbWrap'; w.appendChild(card); w.addEventListener('click', e => { if (e.target === w) close(); }); document.body.appendChild(w); };
+const close = () => { const w = document.getElementById('mbWrap'); if (w) w.remove(); };
+// 打开今天的排行榜。o: {title, sub, empty, tabs: [{id, label}]}（有好几张榜的时候上面放一排切换）
+async function show(board = '', o = {}){
+  const card = el('div', 'mb-card');
+  const mine = el('p', 'mb-mine'), list = el('div', 'mb-list');
+  card.append(el('h2', '', o.title || '今天的排行榜'), el('p', 'mb-sub', o.sub || ''));
+  if (o.tabs){
+    const tabs = el('div', 'mb-tabs');
+    for (const t of o.tabs){
+      const b = el('button', t.id === board ? 'on' : '', t.label);
+      b.type = 'button';
+      b.addEventListener('click', () => { if (t.id !== board) show(t.id, o); });
+      tabs.appendChild(b);
+    }
+    card.appendChild(tabs);
+  }
+  card.append(mine, list);
+  list.appendChild(el('p', 'mb-note', '正在打开排行榜…'));
+  const row = el('div', 'mb-row2');
+  const nm = el('button', 'mb-btn', me().name ? '改名字' : '起个名字');
+  nm.type = 'button';
+  nm.addEventListener('click', () => askName(() => show(board, o)));
+  const cl = el('button', 'mb-btn main', '关闭');
+  cl.type = 'button';
+  cl.addEventListener('click', close);
+  row.append(nm, cl);
+  card.appendChild(row);
+  open(card);
+  if (PREVIEW){ list.replaceChildren(el('p', 'mb-note', '预览里连不上排行榜，到网页版看')); return; }
+  let res = null;
+  try { res = await flush(board); } catch (e){}
+  let rows;
+  try { rows = await api(`mini_scores?select=tag,name,a,b,shown,extra&game=eq.${cfg.game}&board=eq.${encodeURIComponent(board)}&day=eq.${day()}&order=a.desc,b.desc,updated_at.asc&limit=100`); } catch (e){ if (list.isConnected) list.replaceChildren(el('p', 'mb-note', '排行榜没连上，过一会儿再试')); return; }
+  if (!list.isConnected) return;
+  const m = me();
+  list.replaceChildren();
+  if (!rows.length) list.appendChild(el('p', 'mb-note', '今天还没有人上榜，来当第一个'));
+  let myRank = 0;
+  rows.forEach((r, k) => {
+    const isMe = r.tag === m.tag;
+    if (isMe) myRank = k + 1;
+    const d = el('div', 'mb-row' + (isMe ? ' me' : ''));
+    const sc = el('span', 'mb-sc');
+    sc.append(el('b', '', r.shown), document.createTextNode(r.extra || ''));
+    d.append(el('span', 'mb-rk' + (k < 3 ? ' g' + (k + 1) : ''), String(k + 1)), el('span', 'mb-nm', r.name + (isMe ? '（我）' : '')), sc);
+    list.appendChild(d);
+  });
+  const p = store.get(pendKey(board), null);
+  if (myRank) mine.textContent = `你排第 ${myRank} 名，一共 ${rows.length}${rows.length >= 100 ? '+' : ''} 人`;
+  else if (res && res.rank) mine.textContent = `你排第 ${res.rank} 名，一共 ${res.total} 人`;
+  else if (p && p.day === day()) mine.textContent = m.name ? '成绩还没交上去，过一会儿再打开试试' : '起个名字，今天的成绩就能上榜';
+  else if ((store.get(sentKey(board), null) || {}).day === day()) mine.textContent = '你在 100 名以外';
+  else mine.textContent = o.empty || '玩一局就能上榜';
+  if (myRank) setTimeout(() => list.children[myRank - 1]?.scrollIntoView({block: 'nearest'}), 50);
+}
+function askName(then){
+  const card = el('div', 'mb-card');
+  const m = me();
+  card.append(el('h2', '', m.name ? '改个名字' : '起个名字上榜'), el('p', 'mb-sub', '排行榜上显示这个名字，最多 12 个字，几个小游戏共用'));
+  const input = el('input', 'mb-input');
+  input.type = 'text';
+  input.maxLength = 12;
+  input.placeholder = '比如：小游戏大王';
+  input.value = m.name || '';
+  input.autocomplete = 'nickname';
+  input.enterKeyHint = 'done';
+  input.setAttribute('aria-label', '昵称');
+  const err = el('p', 'mb-err');
+  err.setAttribute('role', 'alert');
+  card.append(input, err);
+  const ok = () => {
+    const name = input.value.trim().slice(0, 12);
+    if (!name){ err.textContent = '先起个名字'; input.focus(); return; }
+    const renamed = m.name && m.name !== name;
+    store.set('me', Object.assign(me(), {name}));
+    if (renamed && !PREVIEW) api('rpc/mini_rename', {p_player: m.pid, p_name: name}).catch(() => {});
+    then();
+  };
+  // 回车只算一次：不拦住的话，这一下还会按到下一个弹窗里的按钮
+  input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key !== 'Enter' || e.isComposing) return; e.preventDefault(); ok(); });
+  const row = el('div', 'mb-row2');
+  const skip = el('button', 'mb-btn', m.name ? '不改了' : '先不上榜');
+  skip.type = 'button';
+  skip.addEventListener('click', m.name ? then : close);
+  const go = el('button', 'mb-btn main', '好了');
+  go.type = 'button';
+  go.addEventListener('click', ok);
+  row.append(skip, go);
+  card.appendChild(row);
+  open(card);
+  // 改名的时候旧名字整个选中，直接打字就替换掉
+  setTimeout(() => { input.focus(); input.select(); }, 60);
+}
+const api0 = {init(o){ cfg = Object.assign({first: false}, o); }, submit, show, close, hasName: () => !!me().name};
+if (['localhost', '127.0.0.1'].includes(location.hostname)) api0.mock = fn => { api = fn; };
+return api0;
+})();
+</script>
+<!--/BOARD-->
 <script>
 (async () => {
 'use strict';
+MiniBoard.init({game: 'yidaoqie', first: true});
 const $ = id => document.getElementById(id);
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const TAU = Math.PI * 2;
@@ -302,53 +489,98 @@ const FOODS = {
       c.restore();
     }}
 };
-const EASY = ['tofu', 'pizza', 'mooncake', 'cake'];
-const HARD = ['melon', 'toast', 'heart', 'donut', 'dumpling', 'peanut', 'fish', 'star', 'steak', 'zongzi', 'cloud', 'choco', 'egg'];
+const EASY = ['tofu', 'pizza', 'mooncake'];
+const HARD = ['melon', 'toast', 'heart', 'donut', 'dumpling', 'peanut', 'fish', 'star', 'steak', 'zongzi', 'cloud', 'choco'];
+const BIG = ['pizza', 'mooncake', 'tofu', 'toast', 'heart', 'choco', 'steak', 'dumpling'];   // 够大，能摆樱桃、能切四块
+const SWEET = new Set(['mooncake', 'toast', 'heart', 'choco', 'star', 'donut', 'cloud', 'cake']);
+const FRACS = [{target: 100 / 3, label: '三分之一'}, {target: 25, label: '四分之一'}, {target: 20, label: '五分之一'}, {target: 40, label: '五分之二'}];
 
 /* ================= 题目 ================= */
-// kind：half 切一半；frac 切下几分之几；three 两刀三等份。extra：berries 草莓也要一样多，yolk 蛋黄也要分一半
+// kind：half 切一半；frac 切下几分之几；three 两刀三等份；four 两刀交叉四等份
+// 花样：bites 被偷吃了几口（形状不再对称，不能靠过中心）；avoid 上面摆几颗樱桃，刀线不能碰；spin 放在转盘上一直转
 function makeRound(spec, seed){
   const R = seeded(seed), f = Object.create(FOODS[spec.food]);
   if (f.init) f.init(R);
-  return {...spec, f, rot: spec.food === 'tofu' ? R() * .6 - .3 : R() * TAU, seed, lines: [], done: false};
+  const r = {bites: 0, avoid: 0, ...spec, f, rot: spec.food === 'tofu' ? R() * .6 - .3 : R() * TAU, seed, lines: [], done: false};
+  r.spinRate = spec.spin ? (R() < .5 ? -1 : 1) * (.45 + R() * .25) : 0;
+  r.bitesAt = makeBites(f, r.bites, R);
+  return r;
 }
+// 在边上咬几口：从中心往外找到边，牙印的圆心放在边上偏外一点
+function makeBites(f, n, R){
+  if (!n) return [];
+  const c = document.createElement('canvas').getContext('2d');
+  c.beginPath(); f.shape(c);
+  const inside = (x, y) => c.isPointInPath(x, y, f.rule || 'nonzero');
+  const out = [], a0 = R() * TAU;
+  for (let k = 0; k < n; k++){
+    const a = a0 + k * TAU / n + (R() - .5) * 1.2, dx = Math.cos(a), dy = Math.sin(a);
+    let entered = false, e = 0;
+    for (let d = 0; d < 170; d++){ if (inside(dx * d, dy * d)) entered = true; else if (entered){ e = d; break; } }
+    if (!e) continue;
+    const rr = 24 + R() * 12;
+    out.push({x: dx * (e + rr * .35), y: dy * (e + rr * .35), r: rr, a});
+  }
+  return out;
+}
+// 一口的形状：中间一个大圆，两边各一个小圆，像牙印
+function biteHoles(c, bites){
+  for (const b of bites){
+    const ux = Math.cos(b.a), uy = Math.sin(b.a), px = -uy, py = ux;
+    circ(c, b.x, b.y, b.r);
+    for (const s of [-1, 1]) circ(c, b.x + px * s * b.r * .78 + ux * b.r * .25, b.y + py * s * b.r * .78 + uy * b.r * .25, b.r * .5);
+  }
+}
+const obsName = r => (SWEET.has(r.food) ? '樱桃' : '小番茄');
 function taskText(r){
   if (r.kind === 'three') return ['两刀，切成一样大的三块', '两刀不能在食物里交叉'];
-  if (r.kind === 'frac') return [`切下${r.label}`, `小的那块要正好是 ${r.label}`];
+  if (r.kind === 'four') return ['两刀，切成一样大的四块', '两刀要在食物里交叉'];
+  if (r.kind === 'frac') return [`切下${r.label}`, r.spinRate ? '转盘一直在转，松手那一刻落刀' : `小的那块要正好是 ${r.label}`];
   if (r.food === 'cake') return ['切成两半，草莓也要一样多', '草莓按它的中心算在哪一边'];
   if (r.food === 'egg') return ['切成两半，蛋黄也要对半', '蛋白和蛋黄都要分匀'];
-  return ['切成一样大的两半', '划一刀，越平均越好'];
+  if (r.avoid) return [`切成两半，别碰到${obsName(r)}`, `刀线碰到${obsName(r)}就算失败`];
+  return ['切成一样大的两半', r.spinRate ? '转盘一直在转，松手那一刻落刀' : '划一刀，越平均越好'];
 }
+// 副标题前面：什么东西、被偷吃了几口
+const flavor = r => r.f.name + (r.bitesAt.length > 1 ? '（被偷吃了两口）' : r.bitesAt.length ? '（被偷吃了一口）' : '');
 function dailyRounds(){
-  const R = seeded(hashStr('daily' + today()));
+  const R = seeded(hashStr('daily2' + today()));
   const pick = arr => arr[Math.floor(R() * arr.length)];
   const used = new Set();
   const take = arr => { let f; do f = pick(arr); while (used.has(f) && used.size < 16); used.add(f); return f; };
-  const fr = R() < .5 ? {target: 100 / 3, label: '三分之一'} : {target: 25, label: '四分之一'};
+  const spinAt = Math.floor(R() * 2), four = R() < .6;
   return [
-    {kind: 'half', food: take(EASY.filter(x => x !== 'cake'))},
-    {kind: 'half', food: take(HARD.filter(x => x !== 'egg'))},
-    {kind: 'frac', food: take(HARD.filter(x => x !== 'egg')), ...fr},
+    {kind: 'half', food: take([...EASY, ...HARD]), bites: R() < .4 ? 2 : 1, spin: spinAt === 0},
+    {kind: 'frac', food: take(HARD), bites: 1, spin: spinAt === 1, ...pick(FRACS)},
+    {kind: 'half', food: take(BIG), avoid: 4, bites: R() < .5 ? 1 : 0},
     {kind: 'half', food: R() < .5 ? 'cake' : 'egg'},
-    {kind: 'three', food: take(['pizza', 'mooncake', 'tofu', 'heart', 'toast', 'choco', 'cloud'])}
+    {kind: four ? 'four' : 'three', food: take(BIG), bites: 1}
   ].map((s, i) => makeRound(s, hashStr(today() + i)));
 }
 function endlessRound(n){
   const R = Math.random;
   const pick = arr => arr[Math.floor(R() * arr.length)];
+  const bites = n >= 10 && R() < .5 ? 2 : 1;
   let spec;
-  if (n <= 2) spec = {kind: 'half', food: pick(EASY.filter(x => x !== 'cake'))};
-  else if (n <= 5) spec = {kind: 'half', food: pick(HARD.filter(x => x !== 'egg'))};
+  if (n <= 2) spec = {kind: 'half', food: pick(EASY), bites: 1};
+  else if (n <= 4) spec = R() < .5 ? {kind: 'half', food: pick(HARD), bites} : {kind: 'frac', food: pick(HARD), bites, ...pick(FRACS.slice(0, 2))};
   else {
-    const r = R();
-    if (r < .35) spec = {kind: 'half', food: pick(HARD)};
-    else if (r < .55) spec = {kind: 'frac', food: pick(HARD.filter(x => x !== 'egg')), ...(R() < .5 ? {target: 100 / 3, label: '三分之一'} : {target: 25, label: '四分之一'})};
-    else if (r < .75) spec = {kind: 'half', food: R() < .5 ? 'cake' : 'egg'};
-    else spec = {kind: 'three', food: pick(['pizza', 'mooncake', 'tofu', 'heart', 'toast', 'choco', 'cloud', 'steak'])};
+    const kinds = ['half', 'frac', 'avoid', 'dual', 'three'];
+    if (n >= 7) kinds.push('four', 'frac', 'avoid');
+    const k = pick(kinds);
+    if (k === 'half') spec = {kind: 'half', food: pick(HARD), bites};
+    else if (k === 'frac') spec = {kind: 'frac', food: pick(HARD), bites, ...pick(FRACS)};
+    else if (k === 'avoid') spec = {kind: 'half', food: pick(BIG), avoid: n >= 10 ? 5 : 4, bites: R() < .5 ? 1 : 0};
+    else if (k === 'dual') spec = {kind: 'half', food: R() < .5 ? 'cake' : 'egg'};
+    else spec = {kind: k, food: pick(BIG), bites: 1};
+    if (n >= 6 && (k === 'half' || k === 'frac') && R() < .35) spec.spin = true;
   }
   return makeRound(spec, (Math.random() * 2 ** 32) >>> 0);
 }
-const tolerance = n => Math.max(1, 5 - (n - 1) * .4);
+// 闯关：第 1 关差 3% 以内算过，之后每关严 0.2%，最严 0.6%
+const tolerance = n => Math.max(.6, 3 - (n - 1) * .2);
+// 两刀的题按最歪的那块算，放宽一半
+const tolFor = (r, n) => tolerance(n) * (r.kind === 'three' || r.kind === 'four' ? 1.5 : 1);
 
 /* ================= 画面 ================= */
 const B = 360, CX = 180, CY = 180;   // 砧板的逻辑尺寸
@@ -366,8 +598,22 @@ function fit(){
 }
 addEventListener('resize', () => { if (!$('home').hidden) return; fit(); });
 let artCanvas = null, maskData = null, yolkData = null, MS = 1;
-// 每一题：画一张食物的图，再画一张只有轮廓的「面积图」用来数像素
+// 每一题：先画一张只有轮廓的「面积图」用来数像素（咬掉的地方不算），再画一张食物的图
 function prepare(r, keepCuts){
+  MS = 2;
+  const m = document.createElement('canvas');
+  m.width = m.height = B * MS;
+  const mc = m.getContext('2d', {willReadFrequently: true});
+  const drawMask = (fn, bite) => {
+    mc.setTransform(1, 0, 0, 1, 0, 0); mc.clearRect(0, 0, m.width, m.height);
+    mc.setTransform(MS, 0, 0, MS, 0, 0); mc.translate(CX, CY); mc.rotate(r.rot);
+    mc.fillStyle = '#fff'; mc.beginPath(); fn(mc); mc.fill(r.f.rule || 'nonzero');
+    if (bite && r.bitesAt.length){ mc.globalCompositeOperation = 'destination-out'; mc.beginPath(); biteHoles(mc, r.bitesAt); mc.fill(); mc.globalCompositeOperation = 'source-over'; }
+    return mc.getImageData(0, 0, m.width, m.height).data;
+  };
+  maskData = drawMask(c => r.f.shape(c), true);
+  yolkData = r.f.yolk ? drawMask(c => r.f.yolkShape(c), false) : null;
+  if (r.avoid && !r.obs) placeObstacles(r);
   artCanvas = document.createElement('canvas');
   artCanvas.width = artCanvas.height = Math.round(B * S);
   const a = artCanvas.getContext('2d');
@@ -377,14 +623,55 @@ function prepare(r, keepCuts){
   a.fillStyle = 'rgba(0,0,0,.01)'; a.beginPath(); r.f.shape(a); a.fill(r.f.rule || 'nonzero');
   a.shadowColor = 'transparent';
   r.f.art(a, seeded(r.seed + 7));
-  MS = 2;
-  const m = document.createElement('canvas');
-  m.width = m.height = B * MS;
-  const mc = m.getContext('2d', {willReadFrequently: true});
-  const drawMask = fn => { mc.setTransform(1, 0, 0, 1, 0, 0); mc.clearRect(0, 0, m.width, m.height); mc.setTransform(MS, 0, 0, MS, 0, 0); mc.translate(CX, CY); mc.rotate(r.rot); mc.fillStyle = '#fff'; mc.beginPath(); fn(mc); mc.fill(r.f.rule || 'nonzero'); return mc.getImageData(0, 0, m.width, m.height).data; };
-  maskData = drawMask(c => r.f.shape(c));
-  yolkData = r.f.yolk ? drawMask(c => r.f.yolkShape(c)) : null;
-  if (!keepCuts) r.lines = [];
+  // 被咬掉的地方挖空，牙印边上加一圈深一点的边
+  if (r.bitesAt.length){
+    a.globalCompositeOperation = 'destination-out'; a.fillStyle = '#000'; a.beginPath(); biteHoles(a, r.bitesAt); a.fill();
+    // 只画在食物上（阴影也有颜色，不能只靠 source-atop）
+    a.save(); a.beginPath(); r.f.shape(a); a.clip(r.f.rule || 'nonzero');
+    a.globalCompositeOperation = 'source-atop'; a.strokeStyle = 'rgba(110,60,20,.32)'; a.lineWidth = 6; a.beginPath(); biteHoles(a, r.bitesAt); a.stroke();
+    a.restore();
+    a.globalCompositeOperation = 'source-over';
+  }
+  if (r.obs){ a.setTransform(S, 0, 0, S, 0, 0); for (const o of r.obs) drawObstacle(a, o, SWEET.has(r.food)); }
+  if (!keepCuts){ r.lines = []; r.t0 = performance.now(); }
+}
+// 樱桃（甜的）和小番茄（咸的），从上往下看
+function drawObstacle(c, o, sweet){
+  c.save(); c.translate(o.x, o.y);
+  c.fillStyle = 'rgba(60,20,10,.28)'; c.beginPath(); c.ellipse(1.5, 3.5, o.r, o.r * .9, 0, 0, TAU); c.fill();
+  c.fillStyle = radial(c, 0, 0, o.r, sweet ? ['#ff8a96', '#d81b3a', '#7e0c1e'] : ['#ffa07a', '#e8401f', '#a2220c']); c.beginPath(); c.arc(0, 0, o.r, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.ellipse(-o.r * .35, -o.r * .4, o.r * .3, o.r * .17, -.6, 0, TAU); c.fill();
+  if (sweet){
+    c.strokeStyle = '#6b4a2a'; c.lineWidth = 2; c.lineCap = 'round'; c.beginPath(); c.moveTo(0, -o.r * .55); c.quadraticCurveTo(o.r * .5, -o.r * 1.5, o.r * 1.1, -o.r * 1.6); c.stroke();
+    c.fillStyle = '#5fb04a'; c.beginPath(); c.ellipse(o.r * .95, -o.r * 1.55, 5, 2.6, -.5, 0, TAU); c.fill();
+  } else {
+    c.fillStyle = '#4f9a3c'; for (let k = 0; k < 5; k++){ c.save(); c.rotate(k / 5 * TAU); c.beginPath(); c.ellipse(0, -o.r * .34, 1.8, o.r * .34, 0, 0, TAU); c.fill(); c.restore(); }
+  }
+  c.restore();
+}
+const maskAt = (x, y) => { const W = B * MS, X = Math.round(x * MS), Y = Math.round(y * MS); return X < 0 || Y < 0 || X >= W || Y >= W ? 0 : maskData[(Y * W + X) * 4 + 3]; };
+// 刀线到樱桃中心的距离（刀线是整条直线）
+const lineDist = (l, o) => { const dx = l.b.x - l.a.x, dy = l.b.y - l.a.y; return Math.abs(dx * (o.y - l.a.y) - dy * (o.x - l.a.x)) / (Math.hypot(dx, dy) || 1); };
+// 摆樱桃：随便摆几颗，再看看能把东西切对的方向还剩多少；太多太少都重摆，保证有解又不好找
+function placeObstacles(r){
+  const R = seeded(r.seed + 99), W = B * MS, pts = [];
+  for (let y = 2; y < W; y += 5) for (let x = 2; x < W; x += 5) if (maskData[(y * W + x) * 4 + 3] > 127) pts.push([x / MS, y / MS]);
+  const q = r.kind === 'frac' ? r.target / 100 : .5;
+  const lines = Array.from({length: 72}, (_, k) => { const nx = Math.cos(k / 72 * TAU), ny = Math.sin(k / 72 * TAU), d = pts.map(p => p[0] * nx + p[1] * ny).sort((a, b) => a - b); return {nx, ny, c: d[Math.floor(q * (d.length - 1))]}; });
+  let best = [], bestOk = -1;
+  for (let t = 0; t < 80; t++){
+    const obs = [];
+    for (let g = 0; g < 400 && obs.length < r.avoid; g++){
+      const [x, y] = pts[Math.floor(R() * pts.length)];
+      if ([0, 1, 2, 3, 4, 5, 6, 7].some(k => maskAt(x + Math.cos(k * .785) * 17, y + Math.sin(k * .785) * 17) < 128)) continue;
+      if (obs.some(o => Math.hypot(o.x - x, o.y - y) < 36)) continue;
+      obs.push({x, y, r: 11});
+    }
+    const ok = lines.filter(L => obs.every(o => Math.abs(o.x * L.nx + o.y * L.ny - L.c) > o.r + 4)).length;
+    if (ok >= 6 && ok <= 16){ r.obs = obs; return; }
+    if (ok >= 4 && (bestOk < 0 || Math.abs(ok - 11) < Math.abs(bestOk - 11))){ best = obs; bestOk = ok; }
+  }
+  r.obs = best;
 }
 // 数一数：每个像素按它在各条刀线的哪一边分组
 function measure(r, lines){
@@ -484,12 +771,25 @@ function draw(t){
       }
     }
   } else {
-    c.drawImage(artCanvas, 0, 0, B, B);
+    const ang = r.spinRate && !r.done ? (t - r.t0) / 1000 * r.spinRate : 0;
+    if (r.spinRate && !r.done){
+      // 转盘：一圈白边加几道刻度，跟着食物一起转
+      c.save(); c.translate(CX, CY);
+      c.fillStyle = 'rgba(255,250,240,.5)'; c.beginPath(); c.arc(0, 0, 152, 0, TAU); c.fill();
+      c.strokeStyle = 'rgba(150,100,60,.35)'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 152, 0, TAU); c.stroke();
+      c.rotate(r.rot + ang); c.strokeStyle = 'rgba(150,100,60,.4)'; c.lineWidth = 3; c.lineCap = 'round';
+      for (let k = 0; k < 12; k++){ c.rotate(TAU / 12); c.beginPath(); c.moveTo(0, -146); c.lineTo(0, -138); c.stroke(); }
+      c.restore();
+      c.save(); c.translate(CX, CY); c.rotate(ang); c.translate(-CX, -CY); c.drawImage(artCanvas, 0, 0, B, B); c.restore();
+    } else c.drawImage(artCanvas, 0, 0, B, B);
     for (const l of r.lines){ const [p, q] = extend(l); c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 2.5; c.setLineDash([]); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke(); c.strokeStyle = 'rgba(60,30,10,.4)'; c.lineWidth = 1; c.beginPath(); c.moveTo(p.x, p.y + 1.5); c.lineTo(q.x, q.y + 1.5); c.stroke(); }
   }
   if (drag){
     const [p, q] = extend(drag);
-    c.save(); c.setLineDash([7, 7]); c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 2; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke(); c.restore();
+    const long = Math.hypot(drag.b.x - drag.a.x, drag.b.y - drag.a.y) > 12;
+    const hits = long && r.obs ? r.obs.filter(o => lineDist(drag, o) < o.r + 1) : [];
+    for (const o of hits){ c.strokeStyle = 'rgba(255,60,60,.95)'; c.lineWidth = 3; c.beginPath(); c.arc(o.x, o.y, o.r + 5, 0, TAU); c.stroke(); }
+    c.save(); c.setLineDash([7, 7]); c.strokeStyle = hits.length ? 'rgba(255,80,70,.95)' : 'rgba(255,255,255,.75)'; c.lineWidth = 2; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke(); c.restore();
     c.strokeStyle = 'rgba(255,255,255,.95)'; c.lineWidth = 4; c.lineCap = 'round'; c.beginPath(); c.moveTo(drag.a.x, drag.a.y); c.lineTo(drag.b.x, drag.b.y); c.stroke();
     c.font = '26px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🔪', drag.b.x + 6, drag.b.y - 18);
   }
@@ -508,21 +808,26 @@ cv.addEventListener('pointerup', e => { if (!drag) return; drag.b = toLocal(e); 
 cv.addEventListener('pointercancel', () => { drag = null; });
 function cut(l){
   const r = G.round;
+  if (r.spinRate){ const now = performance.now(); r.rot += (now - r.t0) / 1000 * r.spinRate; r.t0 = now; prepare(r, true); }
   const lines = [...r.lines, l];
   const groups = measure(r, lines);
   Sound.slice();
   if (groups.length < lines.length + 1){ toast(lines.length === 1 ? '没切到，再来一刀' : '第二刀没切到，再来'); anim = {t0: performance.now(), flash: l}; return; }
-  if (r.kind === 'three' && lines.length === 1){ r.lines = lines; anim = {t0: performance.now(), flash: l}; $('taskS').textContent = '再来一刀'; return; }
+  if ((r.kind === 'three' || r.kind === 'four') && lines.length === 1){ r.lines = lines; anim = {t0: performance.now(), flash: l}; $('taskS').textContent = '再来一刀'; return; }
   r.lines = lines;
   finish(r, groups);
 }
 function finish(r, groups){
   r.done = true;
+  $('taskS').textContent = `${flavor(r)} · ${taskText(r)[1]}`;
   let err, msg = '';
   const good = new Set();
   if (r.kind === 'three'){
     if (groups.length > 3){ err = 100; msg = '两刀交叉了，切成了四块'; }
     else { err = Math.max(...groups.map(g => Math.abs(g.p - 100 / 3))); groups.forEach(g => { if (Math.abs(g.p - 100 / 3) <= 1.5) good.add(g); }); }
+  } else if (r.kind === 'four'){
+    if (groups.length < 4){ err = 100; msg = '两刀没在食物里交叉，只切成了三块'; }
+    else { err = Math.max(...groups.map(g => Math.abs(g.p - 25))); groups.forEach(g => { if (Math.abs(g.p - 25) <= 1.5) good.add(g); }); }
   } else if (r.kind === 'frac'){
     const small = groups.reduce((a, b) => (a.p < b.p ? a : b));
     err = Math.abs(small.p - r.target); if (err <= 1.5) good.add(small);
@@ -532,6 +837,7 @@ function finish(r, groups){
     if (r.f.berries){ const [a, b] = groups; if (a.berries !== b.berries){ err += 5; msg = `草莓分成了 ${a.berries} 和 ${b.berries}，加罚 5%`; good.clear(); } }
     if (r.f.yolk){ const ye = Math.abs(groups[0].yp - 50); if (ye > err){ msg = `蛋黄分成了 ${groups[0].yp.toFixed(1)}% 和 ${groups[1].yp.toFixed(1)}%`; err = ye; } if (ye > 1.5) good.clear(); }
   }
+  if (r.obs && r.obs.some(o => r.lines.some(l => lineDist(l, o) < o.r + 1))){ err = 100; msg = `刀碰到${obsName(r)}了`; good.clear(); }
   // 先按显示的精度（一位小数）取整，评语、颜色和平均都用同一个数
   err = Math.round(err * 10) / 10;
   r.err = err;
@@ -552,7 +858,7 @@ function hideResult(){ $('result').classList.remove('show'); }
 
 /* ================= 两种玩法 ================= */
 function startDaily(){
-  const saved = store.get('daily:' + today(), null);
+  const saved = store.get('day2:' + today(), null);
   G = {mode: 'daily', rounds: dailyRounds(), i: 0, errs: []};
   if (saved && saved.done){ G.errs = saved.errs; showDailySummary(); return; }
   if (saved){ G.errs = saved.errs; G.i = saved.errs.length; }
@@ -583,13 +889,13 @@ function nextRound(first){
     if (!first) G.round = endlessRound(G.n);
     $('round').textContent = `第 ${G.n} 关`;
     $('hTitle').textContent = '闯关';
-    $('score').textContent = `差 ${tolerance(G.n).toFixed(1)}% 以内过关`;
+    $('score').textContent = `差 ${tolFor(G.round, G.n).toFixed(1)}% 以内过关`;
     const k = $('knives'); k.replaceChildren();
     for (let i = 0; i < 3; i++) k.appendChild(el('span', i < G.lives ? '' : 'gone', '🔪'));
   }
   const [a, b] = taskText(G.round);
   $('taskT').textContent = a;
-  $('taskS').textContent = `${G.round.f.name} · ${b}`;
+  $('taskS').textContent = `${flavor(G.round)} · ${b}`;
   prepare(G.round);
 }
 function onRoundDone(err){
@@ -597,10 +903,10 @@ function onRoundDone(err){
     G.errs.push(err);
     G.i++;
     $('score').textContent = `平均差 ${(G.errs.reduce((a, b) => a + Math.min(b, 20), 0) / G.errs.length).toFixed(1)}%`;
-    store.set('daily:' + today(), {errs: G.errs, done: G.i >= 5});
+    store.set('day2:' + today(), {errs: G.errs, done: G.i >= 5});
     $('btnNext').textContent = G.i >= 5 ? '看成绩' : '下一刀';
   } else {
-    const pass = err <= tolerance(G.n);
+    const pass = err <= tolFor(G.round, G.n);
     if (pass){ G.passed = G.n; G.n++; $('btnNext').textContent = '下一关'; }
     else { G.lives--; $('btnNext').textContent = G.lives > 0 ? '再来一关' : '看成绩'; const k = $('knives').children[G.lives]; if (k) k.className = 'gone'; }
     if (!pass && G.lives > 0) G.n = G.n;   // 同一关换一样东西再切
@@ -616,6 +922,8 @@ const emoji = e => (e <= .5 ? '🎯' : e <= 1.5 ? '🟢' : e <= 4 ? '🟡' : '�
 function showDailySummary(){
   const errs = G.errs, avg = errs.reduce((a, b) => a + Math.min(b, 20), 0) / errs.length;
   const best = store.get('dailyBest', null);
+  // 排行榜：平均差越小越好（只算今天第一次切的五刀），一样的话比最差的那一刀
+  MiniBoard.submit('', {a: -Math.round(avg * 10) / 10, b: -Math.round(Math.max(...errs.map(e => Math.min(e, 20))) * 10) / 10, shown: `平均差 ${avg.toFixed(1)}%`, extra: errs.map(emoji).join('')});
   const card = el('div', 'card');
   card.appendChild(el('h2', '', avg <= 1 ? '刀神' : avg <= 2.5 ? '好刀工' : avg <= 5 ? '还不错' : '多练练'));
   card.appendChild(el('div', 'big', avg.toFixed(1) + '%'));
@@ -633,7 +941,11 @@ function showDailySummary(){
   card.appendChild(row);
   const home = el('button', 'btn ghost', '回首页'); home.type = 'button';
   home.addEventListener('click', goHome);
-  card.appendChild(home);
+  const lb = el('button', 'btn ghost', '今日排行榜'); lb.type = 'button';
+  lb.addEventListener('click', showBoard);
+  const row2 = el('div', 'row');
+  row2.append(lb, home);
+  card.appendChild(row2);
   card.appendChild(el('p', 'small', '明天会换五样新的'));
   openModal(card);
 }
@@ -666,10 +978,11 @@ function openModal(card){ const m = $('modal'); m.replaceChildren(card); m.hidde
 function closeModal(){ $('modal').hidden = true; }
 function goHome(){ closeModal(); G = null; renderHome(); $('home').hidden = false; }
 $('btnHome').addEventListener('click', () => { Sound.click(); goHome(); });
+const showBoard = () => MiniBoard.show('', {title: '今日五刀排行榜', sub: `${today().slice(5).replace('-', '月')}日 · 所有人切同样的五样，比平均差，越小越好`, empty: '切完今日五刀就能上榜'});
 
 /* ================= 首页 ================= */
 function renderHome(){
-  const d = store.get('daily:' + today(), null);
+  const d = store.get('day2:' + today(), null);
   $('dailyInfo').textContent = d && d.done ? `今天切完了，平均差 ${(d.errs.reduce((a, b) => a + Math.min(b, 20), 0) / d.errs.length).toFixed(1)}%` : d ? `今天切了 ${d.errs.length}/5 刀，接着切` : '每天五样东西，所有人同一题';
   const b = store.get('endlessBest', 0);
   $('endlessInfo').textContent = b ? `最好过了 ${b} 关` : '越切越难，三把刀用完就结束';
@@ -693,6 +1006,7 @@ function drawDemo(){
   c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '800 22px "Baloo 2", sans-serif';
   for (const [x, y, t] of [[96, 190, '50.2%'], [204, 110, '49.8%']]){ const w = c.measureText(t).width + 18; c.fillStyle = 'rgba(63,174,140,.95)'; c.beginPath(); c.roundRect(x - w / 2, y - 15, w, 30, 15); c.fill(); c.fillStyle = '#fff'; c.fillText(t, x, y + 1); }
 }
+$('mBoard').addEventListener('click', () => { Sound.unlock(); Sound.click(); showBoard(); });
 $('mDaily').addEventListener('click', () => { Sound.unlock(); Sound.click(); startDaily(); });
 $('mEndless').addEventListener('click', () => { Sound.unlock(); Sound.click(); startEndless(); });
 
