@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta charset="utf-8">
+<title>一刀切</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap">
+<style>
+/* 厨房台面加一块圆砧板，食物放在中间，一刀下去看两块各占多少。暖木色加番茄红，外观固定不跟系统深色走 */
+:root{
+  color-scheme:light;
+  --bg:#f4e6d2;
+  --bg2:#e7cfae;
+  --ink:#3a2a20;
+  --soft:#7d6656;
+  --red:#e4572e;
+  --red-d:#c0401c;
+  --mint:#3fae8c;
+  --card:#fffaf2;
+  --line:rgba(80,50,30,.14);
+  --font-title:"ZCOOL KuaiLe","PingFang SC","Microsoft YaHei",sans-serif;
+  --font-body:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --font-num:"Baloo 2","Noto Sans SC",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{overflow:hidden;color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;touch-action:manipulation;-webkit-user-select:none;user-select:none;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.08) 0 2px,transparent 2px 46px),radial-gradient(120% 80% at 50% 0%,#fbf2e4 0%,var(--bg) 50%,var(--bg2) 100%)}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+.app{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;padding:calc(12px + env(safe-area-inset-top,0px)) 14px calc(14px + env(safe-area-inset-bottom,0px))}
+.col{width:min(430px,100%);height:100%;display:flex;flex-direction:column;gap:10px}
+.top{display:flex;align-items:center;gap:8px}
+.top h1{margin:0;flex:1;font-family:var(--font-title);font-weight:400;font-size:28px;line-height:1.1}
+.pill{padding:3px 12px;border-radius:999px;background:rgba(255,255,255,.65);box-shadow:inset 0 0 0 1px var(--line);font-size:13px;font-weight:700;white-space:nowrap}
+.icon{width:36px;height:36px;border:0;border-radius:50%;background:rgba(255,255,255,.65);box-shadow:inset 0 0 0 1px var(--line);display:grid;place-items:center;font-size:15px}
+.task{text-align:center}
+.task b{display:block;font-family:var(--font-title);font-weight:400;font-size:26px;line-height:1.2}
+.task span{font-size:13px;color:var(--soft)}
+.boardbox{position:relative;flex:1;min-height:0;display:grid;place-items:center}
+#cv{display:block;touch-action:none}
+.result{position:absolute;left:50%;bottom:4px;transform:translate(-50%,10px);opacity:0;transition:all .3s cubic-bezier(.2,.9,.3,1.3);text-align:center;pointer-events:none}
+.result.show{opacity:1;transform:translate(-50%,0)}
+.result .r1{display:inline-block;padding:4px 16px;border-radius:999px;background:var(--ink);color:#fff8ee;font-family:var(--font-title);font-size:22px}
+.result .r2{display:block;margin-top:4px;font-size:13px;color:var(--soft);font-weight:700}
+.bottom{display:flex;gap:8px;align-items:center}
+.knives{display:flex;gap:2px;font-size:18px}
+.knives .gone{opacity:.25;filter:grayscale(1)}
+.btn{border:0;border-radius:14px;padding:12px 18px;font-weight:900;font-size:16px;background:var(--red);color:#fff;box-shadow:inset 0 -4px 0 rgba(0,0,0,.14),0 8px 18px rgba(200,70,30,.3)}
+.btn.ghost{background:rgba(255,255,255,.72);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}
+.btn.mint{background:var(--mint);box-shadow:inset 0 -4px 0 rgba(0,0,0,.12),0 8px 18px rgba(40,140,110,.3)}
+.btn:active{transform:translateY(2px)}
+.btn:disabled{opacity:.45}
+.grow{flex:1}
+.score{font-family:var(--font-num);font-weight:800;font-size:22px}
+
+/* 首页 */
+#home{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:16px;background:inherit;overflow:auto}
+.home{width:min(400px,100%);display:flex;flex-direction:column;gap:14px;text-align:center}
+.logo{margin:0;font-family:var(--font-title);font-weight:400;font-size:64px;line-height:1;color:var(--red);text-shadow:0 4px 0 #fff,0 8px 0 rgba(200,70,30,.18)}
+.home p{margin:0;color:var(--soft)}
+.home #demo{width:min(240px,64vw);aspect-ratio:1;margin:0 auto;display:block}
+.mode{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;gap:10px;padding:14px 16px;border:0;border-radius:18px;background:var(--card);box-shadow:0 8px 20px rgba(80,40,20,.12),inset 0 0 0 1.5px var(--line);text-align:left}
+.mode .ic{font-size:30px;text-align:center}
+.mode b{display:block;font-family:var(--font-title);font-weight:400;font-size:22px}
+.mode span{font-size:13px;color:var(--soft)}
+
+/* 弹窗 */
+#modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(60,35,20,.4)}
+.card{width:min(370px,100%);max-height:calc(100% - 16px);overflow:auto;border-radius:22px;background:var(--card);box-shadow:0 24px 60px rgba(40,20,10,.35);padding:20px;display:flex;flex-direction:column;gap:12px;text-align:center;animation:pop .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes pop{from{transform:translateY(14px) scale(.95);opacity:0}}
+.card h2{margin:0;font-family:var(--font-title);font-weight:400;font-size:30px}
+.card .big{font-family:var(--font-num);font-weight:800;font-size:54px;line-height:1}
+.card ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;text-align:left}
+.card li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 10px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px}
+.card li b{font-family:var(--font-num);font-size:16px}
+.card .row{display:flex;gap:8px}
+.card .row > *{flex:1}
+.card .small{font-size:12px;color:var(--soft)}
+.toast{position:fixed;left:50%;top:16px;z-index:30;transform:translate(-50%,-10px);opacity:0;padding:8px 18px;border-radius:999px;background:var(--ink);color:#fff8ee;font-size:14px;transition:all .25s;pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){.card{animation:none}}
+</style>
+
+<div class="app">
+  <div class="col">
+    <div class="top"><h1 id="hTitle">一刀切</h1><span class="pill" id="round"></span><button class="icon" id="btnHome" type="button" aria-label="回首页">⌂</button><button class="icon" id="btnSound" type="button" aria-label="声音">🔊</button></div>
+    <div class="task"><b id="taskT"></b><span id="taskS"></span></div>
+    <div class="boardbox" id="boardbox"><canvas id="cv"></canvas><div class="result" id="result"><span class="r1"></span><span class="r2"></span></div></div>
+    <div class="bottom"><div class="knives" id="knives"></div><span class="score grow" id="score"></span><button class="btn" id="btnNext" type="button" hidden>下一个</button></div>
+  </div>
+</div>
+
+<section id="home">
+  <div class="home">
+    <h1 class="logo">一刀切</h1>
+    <p>划一刀，看能不能切得一样大</p>
+    <canvas id="demo" aria-hidden="true"></canvas>
+    <button class="mode" type="button" id="mDaily"><span class="ic">📅</span><span><b>今日五刀</b><span id="dailyInfo">每天五样东西，所有人同一题</span></span></button>
+    <button class="mode" type="button" id="mEndless"><span class="ic">🔪</span><span><b>闯关</b><span id="endlessInfo">越切越难，三把刀用完就结束</span></span></button>
+  </div>
+</section>
+<div id="modal" hidden></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(async () => {
+'use strict';
+const $ = id => document.getElementById(id);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const TAU = Math.PI * 2;
+const store = {
+  get(k, d){ try { const v = localStorage.getItem('ydq:' + k); return v == null ? d : JSON.parse(v); } catch (e){ return d; } },
+  set(k, v){ try { localStorage.setItem('ydq:' + k, JSON.stringify(v)); } catch (e){} }
+};
+function seeded(seed){ let a = seed >>> 0; return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(s){ let h = 2166136261; for (const ch of s){ h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+let toastT = 0;
+const toast = t => { const e = $('toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('show'), 1800); };
+
+/* ================= 食物：形状决定面积，花样只是好看 ================= */
+// 每样东西在以原点为中心、半径约 120 的范围里画。shape 只画轮廓（算面积用），art 画完整样子
+function circ(c, x, y, r){ c.moveTo(x + r, y); c.arc(x, y, r, 0, TAU); }
+function blobPts(R, n, v, rnd){ return Array.from({length: n}, (_, k) => { const a = k / n * TAU; const r = R * (1 + (rnd() - .5) * v); return [Math.cos(a) * r, Math.sin(a) * r]; }); }
+function smoothPath(c, pts){
+  const n = pts.length, mid = i => [(pts[i][0] + pts[(i + 1) % n][0]) / 2, (pts[i][1] + pts[(i + 1) % n][1]) / 2];
+  const m = mid(n - 1);
+  c.moveTo(m[0], m[1]);
+  for (let i = 0; i < n; i++){ const q = mid(i); c.quadraticCurveTo(pts[i][0], pts[i][1], q[0], q[1]); }
+  c.closePath();
+}
+function radial(c, x, y, r, stops){ const g = c.createRadialGradient(x - r * .3, y - r * .35, r * .05, x, y, r); stops.forEach((s, i) => g.addColorStop(i / (stops.length - 1), s)); return g; }
+function dots(c, n, R, rnd, col, s0, s1, inside){ c.fillStyle = col; for (let k = 0; k < n; k++){ const a = rnd() * TAU, d = Math.sqrt(rnd()) * R, x = Math.cos(a) * d, y = Math.sin(a) * d; if (inside && !inside(x, y)) continue; c.beginPath(); c.arc(x, y, s0 + rnd() * (s1 - s0), 0, TAU); c.fill(); } }
+function strawberry(c, x, y, s, a){
+  c.save(); c.translate(x, y); c.rotate(a);
+  c.fillStyle = radial(c, 0, 0, s, ['#ff8a8a', '#e8323c', '#a8141e']);
+  c.beginPath(); c.moveTo(0, s * 1.05); c.bezierCurveTo(-s * 1.2, s * .3, -s * .9, -s * .85, 0, -s * .7); c.bezierCurveTo(s * .9, -s * .85, s * 1.2, s * .3, 0, s * 1.05); c.fill();
+  c.fillStyle = '#ffe9a0';
+  for (const [px, py] of [[-.35, -.2], [.3, -.25], [0, .1], [-.3, .3], [.3, .35], [0, .6], [0, -.45]]){ c.beginPath(); c.ellipse(px * s, py * s, s * .06, s * .09, 0, 0, TAU); c.fill(); }
+  c.fillStyle = '#4caf50';
+  for (let k = 0; k < 5; k++){ c.save(); c.translate(0, -s * .72); c.rotate(-1.2 + k * .6); c.beginPath(); c.ellipse(0, -s * .2, s * .12, s * .3, 0, 0, TAU); c.fill(); c.restore(); }
+  c.restore();
+}
+const FOODS = {
+  tofu: {name: '豆腐', easy: true,
+    shape: c => { c.roundRect(-100, -100, 200, 200, 16); },
+    art(c, R){
+      c.fillStyle = radial(c, 0, 0, 160, ['#ffffff', '#fbf6e8', '#e8dcc0']); c.beginPath(); this.shape(c); c.fill();
+      c.strokeStyle = 'rgba(160,130,80,.25)'; c.lineWidth = 3; c.beginPath(); c.roundRect(-94, -94, 188, 188, 12); c.stroke();
+      dots(c, 70, 90, R, 'rgba(180,150,100,.18)', 1, 2.5);
+      c.fillStyle = 'rgba(120,60,20,.5)'; c.beginPath(); c.ellipse(20, 10, 46, 30, .3, 0, TAU); c.fill();
+      for (let k = 0; k < 10; k++){ const x = (R() - .5) * 120, y = (R() - .5) * 120; c.strokeStyle = '#5fb04a'; c.lineWidth = 4; c.beginPath(); c.ellipse(x, y, 6, 4, R() * 3, 0, TAU); c.stroke(); }
+    }},
+  cake: {name: '草莓蛋糕', berries: true,
+    shape: c => circ(c, 0, 0, 118),
+    art(c, R){
+      c.fillStyle = radial(c, 0, 0, 118, ['#ffffff', '#fff8ee', '#efdcc6']); c.beginPath(); circ(c, 0, 0, 118); c.fill();
+      for (let k = 0; k < 14; k++){ const a = k / 14 * TAU, x = Math.cos(a) * 102, y = Math.sin(a) * 102; c.fillStyle = radial(c, x, y, 14, ['#ffffff', '#fff6ea', '#e8d4bc']); c.beginPath(); c.arc(x, y, 14, 0, TAU); c.fill(); c.strokeStyle = 'rgba(200,170,140,.6)'; c.lineWidth = 1.5; c.beginPath(); c.arc(x, y, 8, 0, 4.5); c.stroke(); }
+      for (const b of this.pts) strawberry(c, b[0], b[1], 17, b[2]);
+      c.fillStyle = '#7ccf7a'; for (let k = 0; k < 4; k++){ c.beginPath(); c.ellipse((R() - .5) * 100, (R() - .5) * 100, 6, 11, R() * 3, 0, TAU); c.fill(); }
+    },
+    init(R){ this.pts = []; let guard = 0; while (this.pts.length < 6 && guard++ < 400){ const a = R() * TAU, d = 20 + R() * 58, x = Math.cos(a) * d, y = Math.sin(a) * d; if (this.pts.every(p => Math.hypot(p[0] - x, p[1] - y) > 40)) this.pts.push([x, y, R() * TAU]); } }},
+  pizza: {name: '披萨',
+    shape: c => circ(c, 0, 0, 122),
+    art(c, R){
+      c.fillStyle = radial(c, 0, 0, 122, ['#f2c27a', '#d9963f', '#a8641f']); c.beginPath(); circ(c, 0, 0, 122); c.fill();
+      c.fillStyle = radial(c, 0, 0, 104, ['#f06a48', '#d8452c', '#a92e1c']); c.beginPath(); circ(c, 0, 0, 104); c.fill();
+      c.fillStyle = 'rgba(255,214,110,.92)'; for (let k = 0; k < 16; k++){ c.beginPath(); smoothPath(c, blobPts(14 + R() * 12, 7, .5, R).map(([x, y]) => { const a = R() * TAU; return [x + Math.cos(k * 2.4) * (k * 5.8), y + Math.sin(k * 2.4) * (k * 5.8)]; })); c.fill(); }
+      for (let k = 0; k < 9; k++){ const a = k / 9 * TAU + R(), d = 30 + R() * 55, x = Math.cos(a) * d, y = Math.sin(a) * d; c.fillStyle = radial(c, x, y, 15, ['#e0573e', '#b8322a', '#7e1d16']); c.beginPath(); c.arc(x, y, 15, 0, TAU); c.fill(); c.fillStyle = 'rgba(90,20,10,.4)'; for (let j = 0; j < 4; j++){ c.beginPath(); c.arc(x + (R() - .5) * 18, y + (R() - .5) * 18, 1.6, 0, TAU); c.fill(); } }
+      c.fillStyle = '#3f9b45'; for (let k = 0; k < 5; k++){ c.beginPath(); c.ellipse((R() - .5) * 150, (R() - .5) * 150, 9, 5, R() * 3, 0, TAU); c.fill(); }
+    }},
+  mooncake: {name: '月饼',
+    shape(c){ const n = 16; c.moveTo(118, 0); for (let k = 0; k < n; k++){ const a0 = k / n * TAU, a1 = (k + 1) / n * TAU, am = (a0 + a1) / 2; c.quadraticCurveTo(Math.cos(am) * 136, Math.sin(am) * 136, Math.cos(a1) * 118, Math.sin(a1) * 118); } c.closePath(); },
+    art(c, R){
+      c.fillStyle = radial(c, 0, 0, 132, ['#f8cc86', '#df9a48', '#a8621f']); c.beginPath(); this.shape(c); c.fill();
+      c.lineWidth = 4;
+      for (const [r, col] of [[96, 'rgba(255,230,180,.7)'], [92, 'rgba(140,70,20,.4)'], [52, 'rgba(255,230,180,.7)'], [48, 'rgba(140,70,20,.4)']]){ c.strokeStyle = col; c.beginPath(); c.arc(0, 0, r, 0, TAU); c.stroke(); }
+      for (let k = 0; k < 8; k++){ c.save(); c.rotate(k / 8 * TAU); c.strokeStyle = 'rgba(255,230,180,.75)'; c.lineWidth = 3; c.beginPath(); c.ellipse(0, -72, 10, 18, 0, 0, TAU); c.stroke(); c.restore(); }
+      c.fillStyle = 'rgba(140,70,20,.5)'; c.font = '44px "ZCOOL KuaiLe", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('月', 2, 4); c.fillStyle = 'rgba(255,235,190,.85)'; c.fillText('月', 0, 2);
+    }},
+  melon: {name: '西瓜',
+    shape: c => { c.moveTo(-128, -40); c.arc(0, -40, 128, Math.PI, 0, true); c.closePath(); },
+    art(c, R){
+      c.fillStyle = '#2e8b3e'; c.beginPath(); this.shape(c); c.fill();
+      c.fillStyle = '#d9f0b8'; c.beginPath(); c.moveTo(-118, -40); c.arc(0, -40, 118, Math.PI, 0, true); c.closePath(); c.fill();
+      c.fillStyle = radial(c, 0, -40, 110, ['#ff8a8a', '#f2434e', '#d12b3b']); c.beginPath(); c.moveTo(-108, -40); c.arc(0, -40, 108, Math.PI, 0, true); c.closePath(); c.fill();
+      c.fillStyle = '#2b1a1a';
+      for (let k = 0; k < 16; k++){ const a = Math.PI * (.08 + R() * .84), d = 40 + R() * 55, x = Math.cos(a) * d, y = -40 + Math.sin(a) * d; c.save(); c.translate(x, y); c.rotate(a + Math.PI / 2); c.beginPath(); c.ellipse(0, 0, 3.5, 6.5, 0, 0, TAU); c.fill(); c.restore(); }
+      c.strokeStyle = 'rgba(30,90,40,.6)'; c.lineWidth = 3; for (let k = 0; k < 7; k++){ const a = Math.PI * (k + .5) / 7; c.beginPath(); c.arc(0, -40, 124, a - .05, a + .05); c.stroke(); }
+    }},
+  toast: {name: '吐司',
+    shape: c => { c.moveTo(-96, 112); c.lineTo(-96, -20); c.bezierCurveTo(-132, -40, -120, -118, -60, -112); c.quadraticCurveTo(0, -140, 60, -112); c.bezierCurveTo(120, -118, 132, -40, 96, -20); c.lineTo(96, 112); c.closePath(); },
+    art(c, R){
+      c.fillStyle = '#c9802f'; c.beginPath(); this.shape(c); c.fill();
+      c.save(); c.translate(0, 6); c.scale(.86, .86);
+      c.fillStyle = radial(c, 0, 0, 150, ['#fff3d4', '#f6dfae', '#e9c486']); c.beginPath(); this.shape(c); c.fill();
+      c.restore();
+      dots(c, 90, 100, R, 'rgba(200,150,80,.28)', 1, 3, (x, y) => y > -90);
+    }},
+  heart: {name: '心形巧克力',
+    shape: c => { c.moveTo(0, 116); c.bezierCurveTo(-140, 20, -128, -112, -58, -112); c.bezierCurveTo(-24, -112, -4, -88, 0, -62); c.bezierCurveTo(4, -88, 24, -112, 58, -112); c.bezierCurveTo(128, -112, 140, 20, 0, 116); c.closePath(); },
+    art(c, R){
+      c.fillStyle = radial(c, -20, -30, 150, ['#9b6040', '#6b3b22', '#3e1f10']); c.beginPath(); this.shape(c); c.fill();
+      c.strokeStyle = 'rgba(255,235,220,.85)'; c.lineWidth = 4; c.lineJoin = 'round'; c.beginPath(); for (let k = 0; k < 9; k++){ const y = -70 + k * 18; c.lineTo(k % 2 ? 70 : -70, y); } c.stroke();
+      c.fillStyle = 'rgba(255,255,255,.18)'; c.beginPath(); c.ellipse(-50, -70, 26, 14, -.6, 0, TAU); c.fill();
+    }},
+  donut: {name: '甜甜圈', rule: 'evenodd',
+    shape: c => { circ(c, 0, 0, 115); circ(c, 0, 0, 40); },
+    art(c, R){
+      c.fillStyle = radial(c, 0, 0, 115, ['#f6cd8c', '#e2a85c', '#b8782e']); c.beginPath(); this.shape(c); c.fill('evenodd');
+      c.fillStyle = radial(c, 0, 0, 105, ['#ffd1e4', '#ff92b8', '#e2668f']); c.beginPath();
+      const n = 22; for (let k = 0; k <= n; k++){ const a = k / n * TAU, r = 100 + Math.sin(k * 2.7) * 7; k ? c.lineTo(Math.cos(a) * r, Math.sin(a) * r) : c.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
+      circ(c, 0, 0, 50); c.fill('evenodd');
+      const cols = ['#ffffff', '#ffd54f', '#4fc3f7', '#81c784', '#ba68c8'];
+      for (let k = 0; k < 40; k++){ const a = R() * TAU, d = 58 + R() * 36; c.save(); c.translate(Math.cos(a) * d, Math.sin(a) * d); c.rotate(R() * 3); c.fillStyle = cols[k % 5]; c.beginPath(); c.roundRect(-5, -1.6, 10, 3.2, 1.6); c.fill(); c.restore(); }
+    }},
+  dumpling: {name: '饺子',
+    shape: c => { c.moveTo(-128, 30); c.bezierCurveTo(-110, -130, 110, -130, 128, 30); c.bezierCurveTo(70, 80, -70, 80, -128, 30); c.closePath(); },
+    art(c, R){
+      c.fillStyle = radial(c, 0, -10, 140, ['#ffffff', '#f7f1e6', '#dccdb4']); c.beginPath(); this.shape(c); c.fill();
+      c.strokeStyle = 'rgba(190,170,140,.75)'; c.lineWidth = 3;
+      for (let k = 0; k < 11; k++){ const t = (k + .5) / 11, x = -110 + t * 220, y = -80 + Math.pow((x / 115), 2) * 90; c.beginPath(); c.moveTo(x - 8, y - 6); c.quadraticCurveTo(x, y + 18, x + 10, y + 26); c.stroke(); }
+      c.fillStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.ellipse(-30, 10, 40, 14, -.2, 0, TAU); c.fill();
+    }},
+  peanut: {name: '花生',
+    shape: c => { circ(c, -52, 0, 70); circ(c, 58, 0, 62); },
+    art(c, R){
+      c.fillStyle = radial(c, 0, 0, 140, ['#f2d2a0', '#d9ae72', '#a87c44']); c.beginPath(); this.shape(c); c.fill();
+      c.save(); c.beginPath(); this.shape(c); c.clip();
+      c.strokeStyle = 'rgba(140,100,50,.35)'; c.lineWidth = 2.5;
+      for (let x = -130; x < 130; x += 18){ c.beginPath(); c.moveTo(x, -80); c.lineTo(x + 30, 80); c.stroke(); }
+      for (let y = -80; y < 80; y += 16){ c.beginPath(); c.moveTo(-130, y); c.bezierCurveTo(-40, y + 8, 40, y - 8, 130, y); c.stroke(); }
+      const g = c.createLinearGradient(-20, 0, 30, 0); g.addColorStop(0, 'rgba(90,60,30,0)'); g.addColorStop(.5, 'rgba(90,60,30,.25)'); g.addColorStop(1, 'rgba(90,60,30,0)');
+      c.fillStyle = g; c.fillRect(-20, -80, 50, 160);
+      c.restore();
+    }},
+  fish: {name: '红烧鱼',
+    shape: c => { c.ellipse(-22, 0, 98, 54, 0, 0, TAU); c.moveTo(62, 0); c.bezierCurveTo(92, -20, 112, -56, 128, -52); c.quadraticCurveTo(108, 0, 128, 52); c.bezierCurveTo(112, 56, 92, 20, 62, 0); c.closePath(); },
+    art(c, R){
+      c.fillStyle = radial(c, -30, -10, 140, ['#e8915a', '#b4532a', '#7a3216']); c.beginPath(); this.shape(c); c.fill();
+      c.strokeStyle = 'rgba(80,25,10,.45)'; c.lineWidth = 3; for (let k = 0; k < 4; k++){ c.beginPath(); c.arc(-40 + k * 26, 0, 40, -.7, .7); c.stroke(); }
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(-92, -12, 9, 0, TAU); c.fill(); c.fillStyle = '#222'; c.beginPath(); c.arc(-93, -12, 4.5, 0, TAU); c.fill();
+      c.strokeStyle = '#ffffff'; c.lineWidth = 3; c.lineCap = 'round'; for (let k = 0; k < 7; k++){ const x = -60 + R() * 110, y = (R() - .5) * 60; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 18, y - 8); c.stroke(); }
+      c.strokeStyle = '#5fb04a'; for (let k = 0; k < 6; k++){ const x = -50 + R() * 100, y = (R() - .5) * 60; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 14, y + 10); c.stroke(); }
+    }},
+  star: {name: '星星饼干',
+    shape(c){ const pts = []; for (let k = 0; k < 10; k++){ const a = -Math.PI / 2 + k / 10 * TAU, r = k % 2 ? 56 : 124; pts.push([Math.cos(a) * r, Math.sin(a) * r + 8]); } smoothPath(c, pts.flatMap((p, i) => { const q = pts[(i + 1) % pts.length]; return [p, [(p[0] * 3 + q[0]) / 4, (p[1] * 3 + q[1]) / 4]]; })); },
+    art(c, R){
+      c.fillStyle = radial(c, 0, 0, 130, ['#f9d394', '#e9b36b', '#bd8040']); c.beginPath(); this.shape(c); c.fill();
+      c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 5; c.save(); c.scale(.86, .86); c.beginPath(); this.shape(c); c.stroke(); c.restore();
+      const cols = ['#ff6f9a', '#4fc3f7', '#ffd54f', '#81c784'];
+      for (let k = 0; k < 24; k++){ const a = R() * TAU, d = R() * 50; c.fillStyle = cols[k % 4]; c.beginPath(); c.arc(Math.cos(a) * d, Math.sin(a) * d + 8, 3, 0, TAU); c.fill(); }
+    }},
+  steak: {name: '牛排',
+    shape(c){ smoothPath(c, this.pts); },
+    init(R){ this.pts = blobPts(108, 11, .32, R).map(([x, y]) => [x * 1.12, y * .9]); },
+    art(c, R){
+      c.fillStyle = '#f3e3c8'; c.beginPath(); this.shape(c); c.fill();
+      c.save(); c.scale(.9, .88); c.fillStyle = radial(c, 0, 0, 130, ['#b8573e', '#93382a', '#5e1f16']); c.beginPath(); this.shape(c); c.fill(); c.restore();
+      c.save(); c.beginPath(); this.shape(c); c.clip();
+      c.strokeStyle = 'rgba(255,230,210,.35)'; c.lineWidth = 2; for (let k = 0; k < 9; k++){ c.beginPath(); c.moveTo((R() - .5) * 180, (R() - .5) * 150); c.bezierCurveTo((R() - .5) * 180, (R() - .5) * 150, (R() - .5) * 180, (R() - .5) * 150, (R() - .5) * 180, (R() - .5) * 150); c.stroke(); }
+      c.strokeStyle = 'rgba(40,10,5,.6)'; c.lineWidth = 10; for (let k = -3; k <= 3; k++){ c.beginPath(); c.moveTo(-140, k * 38 - 60); c.lineTo(140, k * 38 + 60); c.stroke(); }
+      c.restore();
+    }},
+  zongzi: {name: '粽子',
+    shape(c){ const p = [[0, -118], [112, 84], [-112, 84]]; smoothPath(c, p.flatMap((a, i) => { const b = p[(i + 1) % 3]; return [a, [a[0] + (b[0] - a[0]) * .18, a[1] + (b[1] - a[1]) * .18], [a[0] + (b[0] - a[0]) * .82, a[1] + (b[1] - a[1]) * .82]]; })); },
+    art(c, R){
+      c.fillStyle = radial(c, -20, -20, 150, ['#9ed58a', '#5a9e48', '#33702a']); c.beginPath(); this.shape(c); c.fill();
+      c.save(); c.beginPath(); this.shape(c); c.clip();
+      c.strokeStyle = 'rgba(220,255,200,.45)'; c.lineWidth = 2; for (let k = -8; k <= 8; k++){ c.beginPath(); c.moveTo(k * 18, -130); c.lineTo(k * 18 + 60, 120); c.stroke(); }
+      c.strokeStyle = 'rgba(30,70,20,.5)'; c.lineWidth = 3; c.beginPath(); c.moveTo(-60, -10); c.lineTo(60, 60); c.stroke();
+      c.strokeStyle = '#e8d3a8'; c.lineWidth = 6; c.beginPath(); c.moveTo(-140, 20); c.lineTo(140, 20); c.stroke(); c.beginPath(); c.moveTo(-40, -130); c.lineTo(40, 130); c.stroke();
+      c.restore();
+    }},
+  cloud: {name: '棉花糖',
+    shape: c => { for (const [x, y, r] of [[-70, 18, 52], [-20, -26, 62], [44, -16, 56], [80, 30, 44], [10, 36, 56], [-50, 52, 38]]) circ(c, x, y, r); },
+    art(c, R){
+      c.fillStyle = radial(c, -20, -20, 150, ['#ffffff', '#ffe6f0', '#f6bfd6']); c.beginPath(); this.shape(c); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.7)'; for (const [x, y, r] of [[-30, -40, 20], [40, -30, 16], [-70, 0, 12]]){ c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); }
+      dots(c, 30, 100, R, 'rgba(255,255,255,.9)', 1, 2);
+    }},
+  egg: {name: '煎蛋', yolk: true,
+    shape(c){ smoothPath(c, this.pts); },
+    init(R){ this.pts = blobPts(112, 12, .28, R); const a = R() * TAU, d = 20 + R() * 32; this.yk = [Math.cos(a) * d, Math.sin(a) * d, 40]; },
+    yolkShape(c){ circ(c, this.yk[0], this.yk[1], this.yk[2]); },
+    art(c, R){
+      c.fillStyle = '#f6e6c2'; c.beginPath(); this.shape(c); c.fill();
+      c.save(); c.scale(.93, .93); c.fillStyle = radial(c, 0, 0, 120, ['#ffffff', '#fffdf6', '#efe6d4']); c.beginPath(); this.shape(c); c.fill(); c.restore();
+      const [x, y, r] = this.yk;
+      c.fillStyle = radial(c, x, y, r, ['#fff0a0', '#ffc72c', '#f29a0e']); c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.ellipse(x - 12, y - 14, 12, 7, -.6, 0, TAU); c.fill();
+    }},
+  choco: {name: '巧克力',
+    shape: c => { c.moveTo(-100, -112); c.lineTo(12, -112); c.lineTo(12, 4); c.lineTo(104, 4); c.lineTo(104, 112); c.lineTo(-100, 112); c.closePath(); },
+    art(c, R){
+      c.fillStyle = radial(c, -20, -20, 160, ['#8a5436', '#5e331d', '#3a1d0f']); c.beginPath(); this.shape(c); c.fill();
+      c.save(); c.beginPath(); this.shape(c); c.clip();
+      for (let x = -100; x < 104; x += 34) for (let y = -112; y < 112; y += 37){ c.fillStyle = 'rgba(255,220,190,.12)'; c.fillRect(x + 4, y + 4, 26, 4); c.fillStyle = 'rgba(0,0,0,.2)'; c.fillRect(x + 4, y + 29, 26, 4); c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 2; c.strokeRect(x + 2, y + 2, 30, 33); }
+      c.restore();
+    }}
+};
+const EASY = ['tofu', 'pizza', 'mooncake', 'cake'];
+const HARD = ['melon', 'toast', 'heart', 'donut', 'dumpling', 'peanut', 'fish', 'star', 'steak', 'zongzi', 'cloud', 'choco', 'egg'];
+
+/* ================= 题目 ================= */
+// kind：half 切一半；frac 切下几分之几；three 两刀三等份。extra：berries 草莓也要一样多，yolk 蛋黄也要分一半
+function makeRound(spec, seed){
+  const R = seeded(seed), f = Object.create(FOODS[spec.food]);
+  if (f.init) f.init(R);
+  return {...spec, f, rot: spec.food === 'tofu' ? R() * .6 - .3 : R() * TAU, seed, lines: [], done: false};
+}
+function taskText(r){
+  if (r.kind === 'three') return ['两刀，切成一样大的三块', '两刀不能在食物里交叉'];
+  if (r.kind === 'frac') return [`切下${r.label}`, `小的那块要正好是 ${r.label}`];
+  if (r.food === 'cake') return ['切成两半，草莓也要一样多', '草莓按它的中心算在哪一边'];
+  if (r.food === 'egg') return ['切成两半，蛋黄也要对半', '蛋白和蛋黄都要分匀'];
+  return ['切成一样大的两半', '划一刀，越平均越好'];
+}
+function dailyRounds(){
+  const R = seeded(hashStr('daily' + today()));
+  const pick = arr => arr[Math.floor(R() * arr.length)];
+  const used = new Set();
+  const take = arr => { let f; do f = pick(arr); while (used.has(f) && used.size < 16); used.add(f); return f; };
+  const fr = R() < .5 ? {target: 100 / 3, label: '三分之一'} : {target: 25, label: '四分之一'};
+  return [
+    {kind: 'half', food: take(EASY.filter(x => x !== 'cake'))},
+    {kind: 'half', food: take(HARD.filter(x => x !== 'egg'))},
+    {kind: 'frac', food: take(HARD.filter(x => x !== 'egg')), ...fr},
+    {kind: 'half', food: R() < .5 ? 'cake' : 'egg'},
+    {kind: 'three', food: take(['pizza', 'mooncake', 'tofu', 'heart', 'toast', 'choco', 'cloud'])}
+  ].map((s, i) => makeRound(s, hashStr(today() + i)));
+}
+function endlessRound(n){
+  const R = Math.random;
+  const pick = arr => arr[Math.floor(R() * arr.length)];
+  let spec;
+  if (n <= 2) spec = {kind: 'half', food: pick(EASY.filter(x => x !== 'cake'))};
+  else if (n <= 5) spec = {kind: 'half', food: pick(HARD.filter(x => x !== 'egg'))};
+  else {
+    const r = R();
+    if (r < .35) spec = {kind: 'half', food: pick(HARD)};
+    else if (r < .55) spec = {kind: 'frac', food: pick(HARD.filter(x => x !== 'egg')), ...(R() < .5 ? {target: 100 / 3, label: '三分之一'} : {target: 25, label: '四分之一'})};
+    else if (r < .75) spec = {kind: 'half', food: R() < .5 ? 'cake' : 'egg'};
+    else spec = {kind: 'three', food: pick(['pizza', 'mooncake', 'tofu', 'heart', 'toast', 'choco', 'cloud', 'steak'])};
+  }
+  return makeRound(spec, (Math.random() * 2 ** 32) >>> 0);
+}
+const tolerance = n => Math.max(1, 5 - (n - 1) * .4);
+
+/* ================= 画面 ================= */
+const B = 360, CX = 180, CY = 180;   // 砧板的逻辑尺寸
+const cv = $('cv'), ctx = cv.getContext('2d');
+let S = 1, CSS = 300;
+let G = null;   // 当前这一局
+function fit(){
+  const box = $('boardbox').getBoundingClientRect();
+  CSS = Math.max(200, Math.min(box.width, box.height));
+  const d = Math.min(devicePixelRatio || 1, 2.5);
+  S = CSS / B * d;
+  cv.style.width = cv.style.height = CSS + 'px';
+  cv.width = cv.height = Math.round(B * S);
+  if (G && G.round) prepare(G.round, true);
+}
+addEventListener('resize', () => { if (!$('home').hidden) return; fit(); });
+let artCanvas = null, maskData = null, yolkData = null, MS = 1;
+// 每一题：画一张食物的图，再画一张只有轮廓的「面积图」用来数像素
+function prepare(r, keepCuts){
+  artCanvas = document.createElement('canvas');
+  artCanvas.width = artCanvas.height = Math.round(B * S);
+  const a = artCanvas.getContext('2d');
+  a.setTransform(S, 0, 0, S, 0, 0);
+  a.translate(CX, CY); a.rotate(r.rot);
+  a.shadowColor = 'rgba(60,30,10,.35)'; a.shadowBlur = 18 * S / 2; a.shadowOffsetY = 8;
+  a.fillStyle = 'rgba(0,0,0,.01)'; a.beginPath(); r.f.shape(a); a.fill(r.f.rule || 'nonzero');
+  a.shadowColor = 'transparent';
+  r.f.art(a, seeded(r.seed + 7));
+  MS = 2;
+  const m = document.createElement('canvas');
+  m.width = m.height = B * MS;
+  const mc = m.getContext('2d', {willReadFrequently: true});
+  const drawMask = fn => { mc.setTransform(1, 0, 0, 1, 0, 0); mc.clearRect(0, 0, m.width, m.height); mc.setTransform(MS, 0, 0, MS, 0, 0); mc.translate(CX, CY); mc.rotate(r.rot); mc.fillStyle = '#fff'; mc.beginPath(); fn(mc); mc.fill(r.f.rule || 'nonzero'); return mc.getImageData(0, 0, m.width, m.height).data; };
+  maskData = drawMask(c => r.f.shape(c));
+  yolkData = r.f.yolk ? drawMask(c => r.f.yolkShape(c)) : null;
+  if (!keepCuts) r.lines = [];
+}
+// 数一数：每个像素按它在各条刀线的哪一边分组
+function measure(r, lines){
+  const W = B * MS, groups = new Map();
+  const ls = lines.map(l => ({ax: l.a.x * MS, ay: l.a.y * MS, dx: (l.b.x - l.a.x), dy: (l.b.y - l.a.y)}));
+  let total = 0, ytotal = 0;
+  for (let y = 0; y < W; y++){
+    for (let x = 0; x < W; x++){
+      const i = (y * W + x) * 4 + 3, al = maskData[i];
+      if (!al) continue;
+      let key = 0;
+      for (let k = 0; k < ls.length; k++){ const l = ls[k]; if (l.dx * (y + .5 - l.ay) - l.dy * (x + .5 - l.ax) > 0) key |= 1 << k; }
+      let g = groups.get(key);
+      if (!g){ g = {key, area: 0, sx: 0, sy: 0, yolk: 0, berries: 0}; groups.set(key, g); }
+      g.area += al; g.sx += al * x; g.sy += al * y;
+      total += al;
+      if (yolkData){ const yl = yolkData[i]; g.yolk += yl; ytotal += yl; }
+    }
+  }
+  const out = [...groups.values()].filter(g => g.area / total > .002);
+  for (const g of out){ g.p = g.area / total * 100; g.cx = g.sx / g.area / MS; g.cy = g.sy / g.area / MS; g.yp = ytotal ? g.yolk / ytotal * 100 : 0; }
+  if (r.f.berries){
+    for (const b of r.f.pts){
+      const c = Math.cos(r.rot), s = Math.sin(r.rot), x = CX + b[0] * c - b[1] * s, y = CY + b[0] * s + b[1] * c;
+      let key = 0;
+      lines.forEach((l, k) => { if ((l.b.x - l.a.x) * (y - l.a.y) - (l.b.y - l.a.y) * (x - l.a.x) > 0) key |= 1 << k; });
+      const g = out.find(g => g.key === key); if (g) g.berries++;
+    }
+  }
+  return out;
+}
+// 把整块砧板按刀线切成几块（凸多边形），用来分别画每一块
+function clipHalf(poly, l, keep){
+  const side = p => ((l.b.x - l.a.x) * (p[1] - l.a.y) - (l.b.y - l.a.y) * (p[0] - l.a.x) > 0) === keep;
+  const out = [];
+  for (let i = 0; i < poly.length; i++){
+    const p = poly[i], q = poly[(i + 1) % poly.length], sp = side(p), sq = side(q);
+    if (sp) out.push(p);
+    if (sp !== sq){
+      const d1 = (l.b.x - l.a.x) * (p[1] - l.a.y) - (l.b.y - l.a.y) * (p[0] - l.a.x), d2 = (l.b.x - l.a.x) * (q[1] - l.a.y) - (l.b.y - l.a.y) * (q[0] - l.a.x);
+      const t = d1 / (d1 - d2); out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+    }
+  }
+  return out;
+}
+function regionPoly(key, lines){ let poly = [[-50, -50], [B + 50, -50], [B + 50, B + 50], [-50, B + 50]]; lines.forEach((l, k) => { poly = clipHalf(poly, l, !!(key & (1 << k))); }); return poly; }
+
+let drag = null, anim = null, wood = null;
+function drawWood(){
+  wood = document.createElement('canvas');
+  wood.width = wood.height = Math.round(B * S);
+  const c = wood.getContext('2d');
+  c.setTransform(S, 0, 0, S, 0, 0);
+  c.fillStyle = 'rgba(80,40,10,.25)'; c.beginPath(); c.ellipse(CX + 4, CY + 10, 174, 172, 0, 0, TAU); c.fill();
+  const g = c.createRadialGradient(CX - 60, CY - 70, 20, CX, CY, 175);
+  g.addColorStop(0, '#f0c98f'); g.addColorStop(.7, '#d9a462'); g.addColorStop(1, '#b67a3c');
+  c.fillStyle = g; c.beginPath(); c.arc(CX, CY, 172, 0, TAU); c.fill();
+  c.save(); c.beginPath(); c.arc(CX, CY, 172, 0, TAU); c.clip();
+  const R = seeded(42);
+  for (let k = 0; k < 26; k++){ c.strokeStyle = `rgba(140,80,30,${.06 + R() * .1})`; c.lineWidth = 1 + R() * 2.5; c.beginPath(); const y = k * 15 + R() * 6; c.moveTo(0, y); c.bezierCurveTo(120, y + (R() - .5) * 20, 240, y + (R() - .5) * 20, B, y + (R() - .5) * 10); c.stroke(); }
+  c.strokeStyle = 'rgba(120,70,25,.25)'; c.lineWidth = 2; for (let k = 0; k < 6; k++){ c.beginPath(); c.ellipse(80 + R() * 200, 80 + R() * 200, 10 + R() * 14, 4 + R() * 6, R(), 0, TAU); c.stroke(); }
+  for (let k = 0; k < 40; k++){ c.strokeStyle = 'rgba(255,240,220,.18)'; c.lineWidth = 1; c.beginPath(); const x = R() * B, y = R() * B, a = R() * TAU, l = 10 + R() * 30; c.moveTo(x, y); c.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); c.stroke(); }
+  c.restore();
+  c.strokeStyle = 'rgba(255,240,215,.55)'; c.lineWidth = 3; c.beginPath(); c.arc(CX, CY, 168, Math.PI * 1.05, Math.PI * 1.7); c.stroke();
+  c.strokeStyle = 'rgba(90,50,20,.35)'; c.lineWidth = 3; c.beginPath(); c.arc(CX, CY, 171, 0, TAU); c.stroke();
+}
+// 把一条刀线延长到整块砧板
+function extend(l){ const dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len; return [{x: l.a.x - ux * 600, y: l.a.y - uy * 600}, {x: l.a.x + ux * 600, y: l.a.y + uy * 600}]; }
+function draw(t){
+  const c = ctx;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, cv.width, cv.height);
+  if (!G || !G.round) return;
+  if (wood) c.drawImage(wood, 0, 0);
+  c.setTransform(S, 0, 0, S, 0, 0);
+  const r = G.round;
+  if (anim && anim.pieces){
+    const u = Math.min(1, (t - anim.t0) / 420), e = 1 - Math.pow(1 - u, 3);
+    for (const p of anim.pieces){
+      c.save();
+      c.translate(p.ox * e, p.oy * e);
+      c.beginPath(); p.poly.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); c.clip();
+      c.drawImage(artCanvas, 0, 0, B, B);
+      c.restore();
+    }
+    if (u >= 1){
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      for (const p of anim.pieces){
+        const x = p.g.cx + p.ox, y = p.g.cy + p.oy;
+        const txt = p.g.p.toFixed(1) + '%';
+        c.font = '800 22px "Baloo 2", sans-serif';
+        const w = c.measureText(txt).width + 18;
+        c.fillStyle = p.good ? 'rgba(63,174,140,.95)' : 'rgba(58,42,32,.88)';
+        c.beginPath(); c.roundRect(x - w / 2, y - 15, w, 30, 15); c.fill();
+        c.fillStyle = '#fff'; c.fillText(txt, x, y + 1);
+        if (p.sub){ c.font = '700 12px "Noto Sans SC", sans-serif'; c.fillStyle = 'rgba(58,42,32,.85)'; c.fillText(p.sub, x, y + 26); }
+      }
+    }
+  } else {
+    c.drawImage(artCanvas, 0, 0, B, B);
+    for (const l of r.lines){ const [p, q] = extend(l); c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 2.5; c.setLineDash([]); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke(); c.strokeStyle = 'rgba(60,30,10,.4)'; c.lineWidth = 1; c.beginPath(); c.moveTo(p.x, p.y + 1.5); c.lineTo(q.x, q.y + 1.5); c.stroke(); }
+  }
+  if (drag){
+    const [p, q] = extend(drag);
+    c.save(); c.setLineDash([7, 7]); c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 2; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke(); c.restore();
+    c.strokeStyle = 'rgba(255,255,255,.95)'; c.lineWidth = 4; c.lineCap = 'round'; c.beginPath(); c.moveTo(drag.a.x, drag.a.y); c.lineTo(drag.b.x, drag.b.y); c.stroke();
+    c.font = '26px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🔪', drag.b.x + 6, drag.b.y - 18);
+  }
+  if (anim && anim.flash){
+    const u = (t - anim.t0) / 180;
+    if (u < 1){ const [p, q] = extend(anim.flash); const x = p.x + (q.x - p.x) * u, y = p.y + (q.y - p.y) * u; c.strokeStyle = 'rgba(255,255,255,.95)'; c.lineWidth = 5; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(x, y); c.stroke(); }
+  }
+}
+function frame(t){ draw(t); requestAnimationFrame(frame); }
+
+/* ================= 一刀下去 ================= */
+function toLocal(e){ const r = cv.getBoundingClientRect(); return {x: (e.clientX - r.left) / r.width * B, y: (e.clientY - r.top) / r.height * B}; }
+cv.addEventListener('pointerdown', e => { if (!G || !G.round || G.round.done || anim && anim.pieces) return; Sound.unlock(); cv.setPointerCapture(e.pointerId); const p = toLocal(e); drag = {a: p, b: p}; });
+cv.addEventListener('pointermove', e => { if (drag) drag.b = toLocal(e); });
+cv.addEventListener('pointerup', e => { if (!drag) return; drag.b = toLocal(e); const l = drag; drag = null; if (Math.hypot(l.b.x - l.a.x, l.b.y - l.a.y) < 24){ return; } cut(l); });
+cv.addEventListener('pointercancel', () => { drag = null; });
+function cut(l){
+  const r = G.round;
+  const lines = [...r.lines, l];
+  const groups = measure(r, lines);
+  Sound.slice();
+  if (groups.length < lines.length + 1){ toast(lines.length === 1 ? '没切到，再来一刀' : '第二刀没切到，再来'); anim = {t0: performance.now(), flash: l}; return; }
+  if (r.kind === 'three' && lines.length === 1){ r.lines = lines; anim = {t0: performance.now(), flash: l}; $('taskS').textContent = '再来一刀'; return; }
+  r.lines = lines;
+  finish(r, groups);
+}
+function finish(r, groups){
+  r.done = true;
+  let err, msg = '';
+  const good = new Set();
+  if (r.kind === 'three'){
+    if (groups.length > 3){ err = 100; msg = '两刀交叉了，切成了四块'; }
+    else { err = Math.max(...groups.map(g => Math.abs(g.p - 100 / 3))); groups.forEach(g => { if (Math.abs(g.p - 100 / 3) <= 1.5) good.add(g); }); }
+  } else if (r.kind === 'frac'){
+    const small = groups.reduce((a, b) => (a.p < b.p ? a : b));
+    err = Math.abs(small.p - r.target); if (err <= 1.5) good.add(small);
+  } else {
+    err = Math.abs(groups[0].p - 50);
+    if (err <= 1.5) groups.forEach(g => good.add(g));
+    if (r.f.berries){ const [a, b] = groups; if (a.berries !== b.berries){ err += 5; msg = `草莓分成了 ${a.berries} 和 ${b.berries}，加罚 5%`; good.clear(); } }
+    if (r.f.yolk){ const ye = Math.abs(groups[0].yp - 50); if (ye > err){ msg = `蛋黄分成了 ${groups[0].yp.toFixed(1)}% 和 ${groups[1].yp.toFixed(1)}%`; err = ye; } if (ye > 1.5) good.clear(); }
+  }
+  // 先按显示的精度（一位小数）取整，评语、颜色和平均都用同一个数
+  err = Math.round(err * 10) / 10;
+  r.err = err;
+  // 每块往外挪一点
+  const tx = groups.reduce((s, g) => s + g.cx * g.p, 0) / 100, ty = groups.reduce((s, g) => s + g.cy * g.p, 0) / 100;
+  const pieces = groups.map(g => { const dx = g.cx - tx, dy = g.cy - ty, d = Math.hypot(dx, dy) || 1; return {g, poly: regionPoly(g.key, r.lines), ox: dx / d * 12, oy: dy / d * 12, good: good.has(g), sub: r.f.berries ? `🍓×${g.berries}` : r.f.yolk ? `蛋黄 ${g.yp.toFixed(1)}%` : ''}; });
+  anim = {t0: performance.now() + 120, pieces, flash: r.lines[r.lines.length - 1]};
+  setTimeout(() => { anim.t0 = performance.now(); }, 120);
+  const verdict = err <= .5 ? '完美刀工！' : err <= 1.5 ? '好刀法' : err <= 4 ? '还行' : '歪了';
+  setTimeout(() => {
+    showResult(verdict, err >= 100 ? msg : `差 ${err.toFixed(1)}%${msg ? ' · ' + msg : ''}`);
+    if (err <= .5) Sound.perfect(); else if (err <= 4) Sound.ok(); else Sound.bad();
+    onRoundDone(err);
+  }, 560);
+}
+function showResult(a, b){ const r = $('result'); r.querySelector('.r1').textContent = a; r.querySelector('.r2').textContent = b; r.classList.add('show'); }
+function hideResult(){ $('result').classList.remove('show'); }
+
+/* ================= 两种玩法 ================= */
+function startDaily(){
+  const saved = store.get('daily:' + today(), null);
+  G = {mode: 'daily', rounds: dailyRounds(), i: 0, errs: []};
+  if (saved && saved.done){ G.errs = saved.errs; showDailySummary(); return; }
+  if (saved){ G.errs = saved.errs; G.i = saved.errs.length; }
+  enter();
+}
+function startEndless(){ G = {mode: 'endless', n: 1, lives: 3, passed: 0}; G.round = endlessRound(1); enter(); }
+function enter(){
+  $('home').hidden = true;
+  closeModal();
+  fit();
+  drawWood();
+  nextRound(true);
+}
+function nextRound(first){
+  hideResult();
+  anim = null;
+  $('btnNext').hidden = true;
+  if (G.mode === 'daily'){
+    if (G.i >= G.rounds.length) return showDailySummary();
+    G.round = G.rounds[G.i];
+    G.round.done = false; G.round.lines = [];
+    $('round').textContent = `第 ${G.i + 1}/5 刀`;
+    $('hTitle').textContent = '今日五刀';
+    const avg = G.errs.length ? G.errs.reduce((a, b) => a + Math.min(b, 20), 0) / G.errs.length : null;
+    $('score').textContent = avg == null ? '' : `平均差 ${avg.toFixed(1)}%`;
+    $('knives').replaceChildren();
+  } else {
+    if (!first) G.round = endlessRound(G.n);
+    $('round').textContent = `第 ${G.n} 关`;
+    $('hTitle').textContent = '闯关';
+    $('score').textContent = `差 ${tolerance(G.n).toFixed(1)}% 以内过关`;
+    const k = $('knives'); k.replaceChildren();
+    for (let i = 0; i < 3; i++) k.appendChild(el('span', i < G.lives ? '' : 'gone', '🔪'));
+  }
+  const [a, b] = taskText(G.round);
+  $('taskT').textContent = a;
+  $('taskS').textContent = `${G.round.f.name} · ${b}`;
+  prepare(G.round);
+}
+function onRoundDone(err){
+  if (G.mode === 'daily'){
+    G.errs.push(err);
+    G.i++;
+    $('score').textContent = `平均差 ${(G.errs.reduce((a, b) => a + Math.min(b, 20), 0) / G.errs.length).toFixed(1)}%`;
+    store.set('daily:' + today(), {errs: G.errs, done: G.i >= 5});
+    $('btnNext').textContent = G.i >= 5 ? '看成绩' : '下一刀';
+  } else {
+    const pass = err <= tolerance(G.n);
+    if (pass){ G.passed = G.n; G.n++; $('btnNext').textContent = '下一关'; }
+    else { G.lives--; $('btnNext').textContent = G.lives > 0 ? '再来一关' : '看成绩'; const k = $('knives').children[G.lives]; if (k) k.className = 'gone'; }
+    if (!pass && G.lives > 0) G.n = G.n;   // 同一关换一样东西再切
+  }
+  $('btnNext').hidden = false;
+}
+$('btnNext').addEventListener('click', () => {
+  Sound.click();
+  if (G.mode === 'endless' && G.lives <= 0) return showEndlessSummary();
+  nextRound(false);
+});
+const emoji = e => (e <= .5 ? '🎯' : e <= 1.5 ? '🟢' : e <= 4 ? '🟡' : '🔴');
+function showDailySummary(){
+  const errs = G.errs, avg = errs.reduce((a, b) => a + Math.min(b, 20), 0) / errs.length;
+  const best = store.get('dailyBest', null);
+  const card = el('div', 'card');
+  card.appendChild(el('h2', '', avg <= 1 ? '刀神' : avg <= 2.5 ? '好刀工' : avg <= 5 ? '还不错' : '多练练'));
+  card.appendChild(el('div', 'big', avg.toFixed(1) + '%'));
+  card.appendChild(el('p', 'small', '五刀的平均误差，越小越好'));
+  const ul = el('ul');
+  dailyRounds().forEach((r, i) => { const li = el('li'); li.append(el('span', '', emoji(errs[i])), el('span', '', `${r.f.name} · ${taskText(r)[0]}`), el('b', '', errs[i] >= 100 ? '失败' : errs[i].toFixed(1) + '%')); ul.appendChild(li); });
+  card.appendChild(ul);
+  const text = `一刀切 ${today().slice(5).replace('-', '月')}日\n${errs.map(emoji).join('')} 平均差 ${avg.toFixed(1)}%`;
+  const row = el('div', 'row');
+  const share = el('button', 'btn', '复制成绩'); share.type = 'button';
+  share.addEventListener('click', () => copy(text));
+  const play = el('button', 'btn mint', '去闯关'); play.type = 'button';
+  play.addEventListener('click', () => { closeModal(); startEndless(); });
+  row.append(share, play);
+  card.appendChild(row);
+  const home = el('button', 'btn ghost', '回首页'); home.type = 'button';
+  home.addEventListener('click', goHome);
+  card.appendChild(home);
+  card.appendChild(el('p', 'small', '明天会换五样新的'));
+  openModal(card);
+}
+function showEndlessSummary(){
+  const best = Math.max(store.get('endlessBest', 0), G.passed);
+  const isNew = G.passed > store.get('endlessBest', 0);
+  store.set('endlessBest', best);
+  const card = el('div', 'card');
+  card.appendChild(el('h2', '', isNew ? '新纪录！' : '刀用完了'));
+  card.appendChild(el('div', 'big', String(G.passed)));
+  card.appendChild(el('p', 'small', `过了 ${G.passed} 关 · 最好 ${best} 关`));
+  const row = el('div', 'row');
+  const again = el('button', 'btn', '再闯一次'); again.type = 'button';
+  again.addEventListener('click', () => { closeModal(); startEndless(); });
+  const share = el('button', 'btn ghost', '复制成绩'); share.type = 'button';
+  share.addEventListener('click', () => copy(`一刀切 闯关 ${G.passed} 关 🔪`));
+  row.append(again, share);
+  card.appendChild(row);
+  const home = el('button', 'btn ghost', '回首页'); home.type = 'button';
+  home.addEventListener('click', goHome);
+  card.appendChild(home);
+  openModal(card);
+}
+function copy(t){
+  const ok = () => toast('复制好了，发给朋友吧');
+  const fb = () => { const ta = el('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (e){ toast('复制不了，可以截图分享'); } ta.remove(); };
+  try { navigator.clipboard.writeText(t).then(ok, fb); } catch (e){ fb(); }
+}
+function openModal(card){ const m = $('modal'); m.replaceChildren(card); m.hidden = false; }
+function closeModal(){ $('modal').hidden = true; }
+function goHome(){ closeModal(); G = null; renderHome(); $('home').hidden = false; }
+$('btnHome').addEventListener('click', () => { Sound.click(); goHome(); });
+
+/* ================= 首页 ================= */
+function renderHome(){
+  const d = store.get('daily:' + today(), null);
+  $('dailyInfo').textContent = d && d.done ? `今天切完了，平均差 ${(d.errs.reduce((a, b) => a + Math.min(b, 20), 0) / d.errs.length).toFixed(1)}%` : d ? `今天切了 ${d.errs.length}/5 刀，接着切` : '每天五样东西，所有人同一题';
+  const b = store.get('endlessBest', 0);
+  $('endlessInfo').textContent = b ? `最好过了 ${b} 关` : '越切越难，三把刀用完就结束';
+}
+function drawDemo(){
+  const d = $('demo'), sz = d.getBoundingClientRect().width || 240, dp = Math.min(devicePixelRatio || 1, 2.5);
+  d.width = d.height = Math.round(sz * dp);
+  const c = d.getContext('2d');
+  c.scale(sz * dp / 300, sz * dp / 300);
+  const f = Object.create(FOODS.pizza);
+  c.save(); c.translate(150, 150);
+  for (const [k, ox, oy] of [[0, -9, -6], [1, 9, 6]]){
+    c.save(); c.translate(ox, oy);
+    c.beginPath(); if (k === 0){ c.moveTo(-200, -230); c.lineTo(200, 170); c.lineTo(-200, 170); } else { c.moveTo(-200, -230); c.lineTo(200, 170); c.lineTo(200, -230); } c.closePath(); c.clip();
+    c.shadowColor = 'rgba(60,30,10,.3)'; c.shadowBlur = 14; c.shadowOffsetY = 6;
+    c.fillStyle = '#000'; c.beginPath(); f.shape(c); c.fill(); c.shadowColor = 'transparent';
+    f.art(c, seeded(5));
+    c.restore();
+  }
+  c.restore();
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '800 22px "Baloo 2", sans-serif';
+  for (const [x, y, t] of [[96, 190, '50.2%'], [204, 110, '49.8%']]){ const w = c.measureText(t).width + 18; c.fillStyle = 'rgba(63,174,140,.95)'; c.beginPath(); c.roundRect(x - w / 2, y - 15, w, 30, 15); c.fill(); c.fillStyle = '#fff'; c.fillText(t, x, y + 1); }
+}
+$('mDaily').addEventListener('click', () => { Sound.unlock(); Sound.click(); startDaily(); });
+$('mEndless').addEventListener('click', () => { Sound.unlock(); Sound.click(); startEndless(); });
+
+/* ================= 声音 ================= */
+const Sound = (() => {
+  let ac = null, out, nb;
+  const A = {on: store.get('sound', true) !== false};
+  A.unlock = () => { if (ac){ if (ac.state === 'suspended') ac.resume(); return; } try { ac = new (window.AudioContext || window.webkitAudioContext)(); out = ac.createGain(); out.gain.value = A.on ? .8 : 0; out.connect(ac.destination); nb = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; } catch (e){} };
+  const tone = (f, d = .3, g = .12, type = 'sine', t = 0, f2) => { if (!ac || !A.on) return; const t0 = ac.currentTime + t, o = ac.createOscillator(), e = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + d); e.gain.setValueAtTime(.0001, t0); e.gain.linearRampToValueAtTime(g, t0 + .005); e.gain.exponentialRampToValueAtTime(.0001, t0 + d); o.connect(e); e.connect(out); o.start(t0); o.stop(t0 + d + .05); };
+  const noise = (d, g, f1, f2, type = 'highpass', t = 0) => { if (!ac || !A.on) return; const t0 = ac.currentTime + t, s = ac.createBufferSource(); s.buffer = nb; const f = ac.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(f1, t0); f.frequency.exponentialRampToValueAtTime(f2, t0 + d); const e = ac.createGain(); e.gain.setValueAtTime(.0001, t0); e.gain.linearRampToValueAtTime(g, t0 + .01); e.gain.exponentialRampToValueAtTime(.0001, t0 + d); s.connect(f); f.connect(e); e.connect(out); s.start(t0); s.stop(t0 + d + .05); };
+  A.slice = () => { noise(.18, .35, 2000, 9000); tone(140, .12, .25, 'sine', .14, 70); noise(.06, .2, 400, 200, 'lowpass', .14); };
+  A.click = () => tone(880, .05, .06, 'triangle');
+  A.perfect = () => [784, 988, 1175, 1568].forEach((f, k) => tone(f, .5, .09, 'triangle', k * .08));
+  A.ok = () => { tone(659, .3, .09, 'triangle'); tone(784, .4, .09, 'triangle', .1); };
+  A.bad = () => { tone(330, .3, .1, 'triangle'); tone(247, .5, .1, 'triangle', .14); };
+  A.set = v => { A.on = v; store.set('sound', v); if (out) out.gain.value = v ? .8 : 0; };
+  return A;
+})();
+$('btnSound').addEventListener('click', () => { Sound.unlock(); Sound.set(!Sound.on); $('btnSound').textContent = Sound.on ? '🔊' : '🔇'; });
+$('btnSound').textContent = Sound.on ? '🔊' : '🔇';
+
+/* ================= 开机 ================= */
+try { await Promise.all([document.fonts.load('40px "ZCOOL KuaiLe"', '一刀切月今日五刀闯关'), document.fonts.load('800 22px "Baloo 2"', '0123456789.%')]); } catch (e){}
+renderHome();
+drawDemo();
+requestAnimationFrame(frame);
+if (['localhost', '127.0.0.1'].includes(location.hostname)) window.__k = {get G(){ return G; }, cut, startDaily, startEndless, FOODS, makeRound, prepare, measure, nextRound, B};
+})();
+</script>
+
+</html>
